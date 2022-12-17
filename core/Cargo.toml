@@ -1,0 +1,11 @@
+[package]
+name = "fibril_core"
+license = "MIT"
+version = "0.0.0"
+edition = "2021"
+authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
+
+[dependencies.serde]
+optional = true
+version = "1"
+features = ["derive"]
