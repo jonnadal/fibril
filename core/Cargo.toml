@@ -4,6 +4,7 @@ license = "MIT"
 version = "0.0.0"
 edition = "2021"
 authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
+description = "Core types for the Fibril library."
 
 [dependencies.serde]
 optional = true
