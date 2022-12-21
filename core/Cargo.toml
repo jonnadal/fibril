@@ -6,6 +6,13 @@ edition = "2021"
 authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
 description = "Core types for the Fibril library."
 
+[features]
+default = ["std"]
+
+# Provide impls for common standard library types like Vec<T> and HashMap<K, V>.
+# Requires a dependency on the Rust standard library.
+std = []
+
 [dependencies.serde]
 optional = true
 version = "1"

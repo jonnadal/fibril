@@ -1,27 +1,37 @@
 use {
     crate::Id,
-    std::{
-        fmt::{Debug, Display, Formatter},
-        net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-        ops::{Index, IndexMut},
-    },
+    core::fmt::{Debug, Display, Formatter},
+};
+
+#[cfg(feature = "std")]
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    ops::{Index, IndexMut},
 };
 
 impl Debug for Id {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
         Display::fmt(self, f)
     }
 }
 impl Display for Id {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         if self.0 < 256 * 256 {
             f.write_str(":")?;
             Display::fmt(&self.0, f)
         } else {
-            Display::fmt(&SocketAddrV4::from(*self), f)
+            #[cfg(feature = "std")]
+            {
+                Display::fmt(&SocketAddrV4::from(*self), f)
+            }
+            #[cfg(not(feature = "std"))]
+            {
+                Debug::fmt(&self, f)
+            }
         }
     }
 }
+#[cfg(feature = "std")]
 impl From<SocketAddr> for Id {
     fn from(addr: SocketAddr) -> Self {
         match addr {
@@ -30,6 +40,7 @@ impl From<SocketAddr> for Id {
         }
     }
 }
+#[cfg(feature = "std")]
 impl From<SocketAddrV4> for Id {
     fn from(addr: SocketAddrV4) -> Self {
         let octets = addr.ip().octets();
@@ -46,6 +57,20 @@ impl From<SocketAddrV4> for Id {
         Id(usize::from_be_bytes(result))
     }
 }
+
+impl From<Id> for usize {
+    fn from(id: Id) -> Self {
+        id.0
+    }
+}
+
+impl From<usize> for Id {
+    fn from(n: usize) -> Self {
+        Id(n)
+    }
+}
+
+#[cfg(feature = "std")]
 impl From<Id> for SocketAddrV4 {
     fn from(id: Id) -> Self {
         let bytes = id.0.to_be_bytes();
@@ -54,22 +79,16 @@ impl From<Id> for SocketAddrV4 {
         SocketAddrV4::new(ip, port)
     }
 }
-impl From<Id> for usize {
-    fn from(id: Id) -> Self {
-        id.0
-    }
-}
-impl From<usize> for Id {
-    fn from(n: usize) -> Self {
-        Id(n)
-    }
-}
+
+#[cfg(feature = "std")]
 impl<T> Index<Id> for Vec<T> {
     type Output = T;
     fn index(&self, id: Id) -> &Self::Output {
         self.index(usize::from(id))
     }
 }
+
+#[cfg(feature = "std")]
 impl<T> IndexMut<Id> for Vec<T> {
     fn index_mut(&mut self, id: Id) -> &mut Self::Output {
         self.index_mut(usize::from(id))
