@@ -14,6 +14,13 @@ keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 optional = true
 version = "0.3"
 
+[features]
+default = ["std"]
+
+# Provide impls for common standard library types like Vec<T> and HashMap<K, V>.
+# Requires a dependency on the Rust standard library.
+std = []
+
 [dependencies.serde]
 optional = true
 version = "1"

@@ -1,5 +1,8 @@
 //! This module specifies the core types for the Fibril library.
 
+// Support using Fibril core without the standard library.
+#![cfg_attr(not(feature = "std"), no_std)]
+
 #![deny(unused_must_use)]
 #![warn(rust_2018_idioms, unreachable_pub)]
 
