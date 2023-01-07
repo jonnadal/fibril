@@ -42,7 +42,7 @@ where
 {
     pub fn assert_no_panic(&mut self) {
         match self.run() {
-            RunResult::Complete => return,
+            RunResult::Complete => (),
             RunResult::Incomplete => panic!("Too many representative traces."),
             RunResult::Panic {
                 message,
@@ -66,7 +66,7 @@ where
             RunResult::Panic {
                 message,
                 minimal_trace,
-            } => return (message, minimal_trace),
+            } => (message, minimal_trace),
         }
     }
 
