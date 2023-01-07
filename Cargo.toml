@@ -1,2 +1,2 @@
 [workspace]
-members = ["core", "fiber", "vector_clock"]
+members = ["core", "fiber", "vector_clock", "verifier"]

@@ -1,0 +1,16 @@
+[package]
+name = "fibril_verifier"
+license = "MIT OR Apache-2.0"
+version = "0.0.0"
+edition = "2021"
+authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
+description = "Verifies behavior for distributed systems implemented with the Fibril library."
+
+[dependencies]
+colorful = "0.2"
+fibril_core = { path = "../core", version = "0" }
+serde = { version = "1", features = ["derive"] }
+vector_clock = { path = "../vector_clock", version = "0", features = ["serde"] }
+
+[dev-dependencies]
+fibril = { path = "../fiber", features = ["serde"] }
