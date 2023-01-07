@@ -182,10 +182,19 @@ where
                 };
                 let last_trace_record = self.trace_records.last_mut().unwrap();
                 last_trace_record.command = Command::Panic(message.clone());
-                let color = HSL::new(1.0 * usize::from(last_trace_record.id) as f32 / self.actors.len() as f32, 0.5, 0.5);
+                let color = HSL::new(
+                    1.0 * usize::from(last_trace_record.id) as f32 / self.actors.len() as f32,
+                    0.5,
+                    0.5,
+                );
                 println!(
                     "{}",
-                    format!("■ {clock} {id} → Panic({message:?})", clock=last_trace_record.clock, id=last_trace_record.id).color(color)
+                    format!(
+                        "■ {clock} {id} → Panic({message:?})",
+                        clock = last_trace_record.clock,
+                        id = last_trace_record.id
+                    )
+                    .color(color)
                 );
                 for v in &mut self.visitors {
                     v.on_maximal(&self.trace_records);
