@@ -8,7 +8,7 @@ description = "Verifies behavior for distributed systems implemented with the Fi
 
 [dependencies]
 colorful = "0.2"
-fibril_core = { path = "../core", version = "0" }
+fibril_core = { path = "../core", version = "0", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 vector_clock = { path = "../vector_clock", version = "0", features = ["serde"] }
 
