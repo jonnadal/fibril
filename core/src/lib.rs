@@ -9,7 +9,7 @@ mod id;
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Command<M> {
     Exit,
-    Panic,
+    Panic(String),
     Recv,
     Send(Id, M),
 }
