@@ -48,7 +48,7 @@ where
                 message,
                 minimal_trace,
             } => {
-                println!("Trace had a panic:");
+                println!("Minimal trace reaching panic:");
                 let mut i = 1;
                 for r in &minimal_trace {
                     println!("\t{i}. {r}");
@@ -61,7 +61,7 @@ where
 
     pub fn assert_panic(&mut self) -> (String, Vec<TraceRecord<M>>) {
         match self.run() {
-            RunResult::Complete => panic!("Did not panic."),
+            RunResult::Complete => panic!("Done, but expected an actor to panic."),
             RunResult::Incomplete => panic!("Too many representative traces."),
             RunResult::Panic {
                 message,
@@ -180,7 +180,13 @@ where
                 } else {
                     "UNKNOWN".to_string()
                 };
-                self.trace_records.last_mut().unwrap().command = Command::Panic(message.clone());
+                let last_trace_record = self.trace_records.last_mut().unwrap();
+                last_trace_record.command = Command::Panic(message.clone());
+                let color = HSL::new(1.0 * usize::from(last_trace_record.id) as f32 / self.actors.len() as f32, 0.5, 0.5);
+                println!(
+                    "{}",
+                    format!("■ {clock} {id} → Panic({message:?})", clock=last_trace_record.clock, id=last_trace_record.id).color(color)
+                );
                 for v in &mut self.visitors {
                     v.on_maximal(&self.trace_records);
                 }
