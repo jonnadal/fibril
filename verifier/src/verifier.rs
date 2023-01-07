@@ -40,6 +40,36 @@ impl<M> Verifier<M>
 where
     M: Clone + Debug + PartialEq,
 {
+    pub fn assert_no_panic(&mut self) {
+        match self.run() {
+            RunResult::Complete => return,
+            RunResult::Incomplete => panic!("Too many representative traces."),
+            RunResult::Panic {
+                message,
+                minimal_trace,
+            } => {
+                println!("Trace had a panic:");
+                let mut i = 1;
+                for r in &minimal_trace {
+                    println!("\t{i}. {r}");
+                    i += 1;
+                }
+                panic!("^ {message}");
+            }
+        }
+    }
+
+    pub fn assert_panic(&mut self) -> (String, Vec<TraceRecord<M>>) {
+        match self.run() {
+            RunResult::Complete => panic!("Did not panic."),
+            RunResult::Incomplete => panic!("Too many representative traces."),
+            RunResult::Panic {
+                message,
+                minimal_trace,
+            } => return (message, minimal_trace),
+        }
+    }
+
     fn find_next_reversible_race(&mut self) -> Option<Vec<(Id, Event<M>, VectorClock)>>
     where
         M: Clone + PartialEq,

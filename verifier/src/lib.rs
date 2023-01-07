@@ -1,4 +1,46 @@
 //! Fibril Verifier is a library for model checking Fibril systems.
+//!
+//! # Example
+//!
+//! ```rust
+//! use fibril::*;
+//! use fibril_verifier::*;
+//!
+//! #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+//! enum Msg { Inc, Double, Value(u64) }
+//!
+//! let mut verifier = Verifier::new(|cfg| {
+//!     let server = cfg.spawn(Fiber::new(|sdk| {
+//!         let mut val = 0;
+//!         loop {
+//!             let (src, msg) = sdk.recv();
+//!             match msg {
+//!                 Msg::Inc => {
+//!                     val += 1;
+//!                     sdk.send(src, Msg::Value(val));
+//!                 }
+//!                 Msg::Double => {
+//!                     val *= 2;
+//!                     sdk.send(src, Msg::Value(val));
+//!                 }
+//!                 _ => sdk.exit(),
+//!             }
+//!         }
+//!     }));
+//!     cfg.spawn(Fiber::new(move |sdk| {
+//!         sdk.send(server, Msg::Inc);
+//!         let (_src, msg) = sdk.recv();
+//!         assert_eq!(msg, Msg::Value(1)); // truth depends on race winner
+//!     }));
+//!     cfg.spawn(Fiber::new(move |sdk| {
+//!         sdk.send(server, Msg::Double);
+//!         let (_src, msg) = sdk.recv();
+//!         assert_eq!(msg, Msg::Value(2)); // truth depends on race winner
+//!     }));
+//! });
+//! let (msg, _minimal_trace) = verifier.assert_panic();
+//! assert!(msg.contains("left == right"));
+//! ```
 
 #![deny(unused_must_use)]
 #![warn(rust_2018_idioms, unreachable_pub)]

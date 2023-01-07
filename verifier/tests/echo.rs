@@ -1,6 +1,6 @@
 use {
     fibril::{Fiber, Id, Sdk},
-    fibril_verifier::{assert_trace, RunResult, TraceRecordingVisitor, Verifier},
+    fibril_verifier::{assert_trace, TraceRecordingVisitor, Verifier},
 };
 
 fn server(sdk: Sdk<String>) {
@@ -36,7 +36,7 @@ fn has_expected_traces() {
         cfg.spawn(Fiber::new(new_client(server)));
     })
     .visitor(record);
-    assert_eq!(verifier.run(), RunResult::Complete);
+    verifier.assert_no_panic();
 
     let traces = replay();
     assert_eq!(traces.len(), 6);
