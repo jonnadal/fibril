@@ -7,6 +7,7 @@ mod id;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[non_exhaustive]
 pub enum Command<M> {
     Exit,
     Panic(String),
@@ -16,6 +17,7 @@ pub enum Command<M> {
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[non_exhaustive]
 pub enum Event<M> {
     RecvOk(Id, M),
     SendOk,

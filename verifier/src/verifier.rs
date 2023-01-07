@@ -221,6 +221,7 @@ where
                 "{}",
                 format!("► {clock} SendOk → {id}", clock = actor.clock).color(color)
             ),
+            _ => unimplemented!(),
         }
         self.trace_records.push(TraceRecord {
             event: event.clone(),
@@ -267,6 +268,7 @@ where
                 actors[*dst].inbox_by_src[id].push_back((m.clone(), m_clock));
                 |_| Some((VectorClock::new(), Event::SendOk))
             }
+            _ => unimplemented!(),
         };
         record.command = command;
         actors[id].trace_tree.visit(record.clone());
