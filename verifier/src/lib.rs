@@ -2,6 +2,15 @@
 //!
 //! # Example
 //!
+//! ```toml
+//! [dependencies]
+//! fibril = { version = "0", features = ["serde"] }
+//! serde = { version = "1", features = ["derive"] }
+//!
+//! [dev-dependencies]
+//! fibril_verifier = "0"
+//! ```
+//!
 //! ```rust
 //! use fibril::*;
 //! use fibril_verifier::*;
