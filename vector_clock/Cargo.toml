@@ -1,0 +1,12 @@
+[package]
+name = "vector_clock"
+license = "MIT OR Apache-2.0"
+version = "0.0.0"
+edition = "2021"
+authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
+description = "An efficient vector clock for partially ordered events."
+
+[dependencies.serde]
+optional = true
+version = "1"
+features = ["derive"]
