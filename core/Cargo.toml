@@ -5,6 +5,10 @@ version = "0.0.1"
 edition = "2021"
 authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
 description = "Core types for the Fibril library."
+repository = "https://github.com/jonnadal/fibril"
+readme = "../README.md"
+categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
+keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 
 [dependencies.serde]
 optional = true
