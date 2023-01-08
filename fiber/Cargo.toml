@@ -16,3 +16,5 @@ fibril_core = { path = "../core", version = "0" }
 
 [features]
 serde = ["fibril_core/serde"]
+serde_json = ["fibril_core/serde_json"]
+rt = ["fibril_core/rt"]

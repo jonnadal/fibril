@@ -16,3 +16,6 @@ pub struct Fiber<'a, M>(ScopedCoroutine<'a, Event<M>, Command<M>, (), DefaultSta
 pub use fibril_core::Id;
 
 pub struct Sdk<'a, M>(&'a Yielder<Event<M>, Command<M>>, Id);
+
+#[cfg(feature = "rt")]
+pub use fibril_core::UdpRuntime;
