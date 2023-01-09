@@ -11,7 +11,13 @@ use {
 mod fiber;
 mod sdk;
 
+#[cfg(not(feature = "tracing"))]
 pub struct Fiber<'a, M>(ScopedCoroutine<'a, Event<M>, Command<M>, (), DefaultStack>);
+#[cfg(feature = "tracing")]
+pub struct Fiber<'a, M>(
+    ScopedCoroutine<'a, Event<M>, Command<M>, (), DefaultStack>,
+    tracing::Span,
+);
 
 pub use fibril_core::Id;
 
