@@ -36,7 +36,7 @@
 //! }
 //!
 //! // In the binary, bind the server to a UDP socket.
-//! fn main() {
+//! fn run_server_over_udp() {
 //!     use std::net::Ipv4Addr;
 //!     let mut rt = UdpRuntime::new_with_serde_json()
 //!         .ipv4(Ipv4Addr::LOCALHOST)
