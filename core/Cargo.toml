@@ -14,13 +14,6 @@ keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 optional = true
 version = "0.3"
 
-[features]
-default = ["std"]
-
-# Provide impls for common standard library types like Vec<T> and HashMap<K, V>.
-# Requires a dependency on the Rust standard library.
-std = []
-
 [dependencies.serde]
 optional = true
 version = "1"
@@ -40,6 +33,13 @@ version = "1"
 features = ["net", "rt-multi-thread", "sync", "time"]
 
 [features]
+default = ["std"]
 rt = ["dep:futures", "dep:tokio", "dep:tracing"]
+    #^ Include a UDP runtime.
 serde = ["dep:serde"]
+    #^ Include Serialize/Deserialize implementations for Command/Effect/Id.
 serde_json = ["dep:serde_json", "serde"]
+    #^ Include a new_with_serde_json helper in the UDP runtime.
+std = []
+    #^ Provide impls for common standard library types like Vec<T> and HashMap<K, V>.
+    #^ Requires a dependency on the Rust standard library.
