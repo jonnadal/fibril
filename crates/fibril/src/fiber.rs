@@ -1,8 +1,10 @@
 use {
-    crate::{Fiber, Sdk},
-    corosensei::{CoroutineResult, ScopedCoroutine},
+    crate::Sdk,
+    corosensei::{stack::DefaultStack, CoroutineResult, ScopedCoroutine},
     fibril_core::{Command, Event, Step},
 };
+
+pub struct Fiber<'a, M>(ScopedCoroutine<'a, Event<M>, Command<M>, (), DefaultStack>);
 
 impl<'a, M> Fiber<'a, M> {
     pub fn new(behavior: impl FnOnce(Sdk<'_, M>) + 'a) -> Self {

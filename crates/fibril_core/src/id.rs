@@ -1,13 +1,14 @@
-use {
-    crate::Id,
-    core::fmt::{Debug, Display, Formatter},
-};
+use core::fmt::{Debug, Display, Formatter};
 
 #[cfg(feature = "std")]
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     ops::{Index, IndexMut},
 };
+
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct Id(usize);
 
 impl Debug for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {

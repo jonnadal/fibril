@@ -7,7 +7,6 @@
 #![cfg_attr(all(doc, CHANNEL_NIGHTLY), feature(doc_auto_cfg))]
 // Support using Fibril core without the standard library.
 #![cfg_attr(not(feature = "std"), no_std)]
-
 #![deny(unused_must_use)]
 #![warn(rust_2018_idioms, unreachable_pub)]
 
@@ -32,9 +31,7 @@ pub enum Event<M> {
     SpawnOk(Id),
 }
 
-#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct Id(usize);
+pub use id::Id;
 
 pub trait Step<M> {
     fn step(&mut self, event: Event<M>) -> Command<M>;

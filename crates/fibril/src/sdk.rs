@@ -1,7 +1,9 @@
 use {
-    crate::Sdk,
+    corosensei::Yielder,
     fibril_core::{Command, Event, Id},
 };
+
+pub struct Sdk<'a, M>(pub(crate) &'a Yielder<Event<M>, Command<M>>, pub(crate) Id);
 
 impl<'a, M> Sdk<'a, M> {
     pub fn exit(&self) -> ! {

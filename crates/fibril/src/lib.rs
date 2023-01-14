@@ -5,15 +5,8 @@
 //! Please see [the `fibril_verifier` docs](https://docs.rs/fibril_verifier/).
 
 #![cfg_attr(all(doc, CHANNEL_NIGHTLY), feature(doc_auto_cfg))]
-
 #![deny(unused_must_use)]
 #![warn(rust_2018_idioms, unreachable_pub)]
-
-#[cfg(feature = "fibers")]
-use {
-    corosensei::{stack::DefaultStack, ScopedCoroutine, Yielder},
-    fibril_core::{Command, Event},
-};
 
 #[cfg(feature = "fibers")]
 mod fiber;
@@ -23,12 +16,12 @@ mod sdk;
 mod udp;
 
 #[cfg(feature = "fibers")]
-pub struct Fiber<'a, M>(ScopedCoroutine<'a, Event<M>, Command<M>, (), DefaultStack>);
+pub use fiber::Fiber;
 
 pub use fibril_core::Id;
 
 #[cfg(feature = "fibers")]
-pub struct Sdk<'a, M>(&'a Yielder<Event<M>, Command<M>>, Id);
+pub use sdk::Sdk;
 
 #[cfg(feature = "rt")]
 pub use udp::UdpRuntime;

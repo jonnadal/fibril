@@ -1,7 +1,11 @@
 use {
-    crate::{TraceRecord, TraceRecordingVisitor, Visitor},
+    crate::TraceRecord,
     std::sync::{Arc, Mutex},
 };
+
+pub trait Visitor<M> {
+    fn on_maximal(&mut self, trace_records: &[TraceRecord<M>]);
+}
 
 impl<F, M> Visitor<M> for F
 where
@@ -11,6 +15,8 @@ where
         self(trace_records);
     }
 }
+
+pub struct TraceRecordingVisitor<M>(Arc<Mutex<Vec<Vec<TraceRecord<M>>>>>);
 
 impl<M> TraceRecordingVisitor<M> {
     pub fn new_with_replay() -> (Self, impl Fn() -> Vec<Vec<TraceRecord<M>>>)
