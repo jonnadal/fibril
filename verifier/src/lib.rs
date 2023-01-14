@@ -162,6 +162,49 @@ pub enum RunResult<M> {
     },
 }
 
+/// A runtime that can verify safety properties observable by distributed [`Step`] instances.
+///
+/// # Purpose
+///
+/// In the presence of nondeterminism, most runtimes execute one "schedule" of events. For
+/// instance, if clients _c<sub>A</sub>_ and _c<sub>B</sub>_ send two racing messages `A` and
+/// `B` to server _s_, then a typical scheduler will either exercise the case where message `A`
+/// lands before message `B` or the case where `B` lands before `A`. This runtime will exercise
+/// both.
+///
+/// By exercising all anticipated nondeterministic outcomes (even seemingly unlikely ones like
+/// unbounded message delivery delay), we can infer that any assertions that pass during
+/// verification should also hold during real-world scenarios.
+///
+/// # Internal Implementation Details
+///
+/// ```text
+/// You can safely ignore this section if you only want to use the library. It is only
+/// included as documentation for library contributors.
+/// ```
+///
+/// The implementation is based on my understanding of _[Source Sets: A Foundation for Optimal
+/// Dynamic Partial Order Reduction](https://dl.acm.org/doi/10.1145/3073408)_ (and feedback is very
+/// much appreciated if I got this wrong):
+///
+/// 1. Each sequential behavior implementing [`Step`] is paired with a _wakeup tree_.  Each tree
+///    persists the sequenced events experienced by that actor for all visited system traces.
+/// 2. When evaluating whether to schedule a potential [`Event`] for an actor, the scheduler
+///    first checks that actor's wakeup tree. It only schedules events not yet in the tree.
+/// 3. Conversely, when an actor triggers a [`Command`] that generates an [`Event`], the event is
+///    added to a queue for the recipient actor.
+/// 4. The checker primes the queue by spawning actors and continues until all queues are
+///    empty.
+///
+/// Additional notes:
+///
+/// 1. I believe the algorithm only relies on recording events corresponding with nondeterministic
+///    commands (such as [`Event::RecvOk`] for [`Command::Recv`]) in the trace trees. For
+///    debuggability the current implementation also records events corresponding with
+///    deterministic commands (such as [`Event::SendOk`] for [`Command::Send`]).
+/// 2. The implementation could persist event _fingerprints_ (digests) rather than the specific
+///    events to reduce memory consumption at the cost of added CPU load. Whether this is
+///    worthwhile remains to be seen.
 pub struct Verifier<M> {
     actors: Vec<verifier::Actor<M>>,
     #[allow(clippy::type_complexity)]
