@@ -4,6 +4,7 @@
 //!
 //! Please see [the `fibril_verifier` docs](https://docs.rs/fibril_verifier/).
 
+#![cfg_attr(all(doc, CHANNEL_NIGHTLY), feature(doc_auto_cfg))]
 // Support using Fibril core without the standard library.
 #![cfg_attr(not(feature = "std"), no_std)]
 

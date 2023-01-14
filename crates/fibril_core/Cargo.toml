@@ -10,6 +10,10 @@ readme = "../../README.md"
 categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
 keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 
+[build-dependencies]
+rustc_version = "0.4.0"
+    #^ This build dependency can be removed once doc_auto_cfg stabilizes.
+
 [dependencies.serde]
 optional = true
 version = "1"
@@ -22,3 +26,6 @@ serde = ["dep:serde"]
 std = []
     #^ Provide impls for common standard library types like Vec<T> and HashMap<K, V>.
     #^ Requires a dependency on the Rust standard library.
+
+[package.metadata.docs.rs]
+all-features = true
