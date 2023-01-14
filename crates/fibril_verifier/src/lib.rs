@@ -1,4 +1,4 @@
-//! Fibril Verifier is a library for model checking Fibril systems.
+//! Fibril Verifier is a library for model checking [Fibril](https://docs.rs/fibril/) systems.
 //!
 //! # Example
 //!

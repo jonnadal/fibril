@@ -45,6 +45,7 @@ features = ["net", "rt-multi-thread", "sync", "time"]
 
 [features]
 fibers = ["dep:corosensei"]
+    #^ Include support for fibers.
 rt = ["dep:futures", "dep:tokio", "dep:serde", "dep:tracing"]
     #^ Include a UDP runtime.
 serde_json = ["dep:serde_json"]

@@ -3,6 +3,13 @@
 //! # Usage
 //!
 //! Please see [the `fibril_verifier` docs](https://docs.rs/fibril_verifier/).
+//!
+//! # Features
+//!
+//! - `fibers`: Include support for
+//! [fibers](https://en.wikipedia.org/wiki/Fiber_(computer_science)).
+//! - `rt`: Include a UDP runtime.
+//! - `serde_json`: Include a `new_with_serde_json` helper in the UDP runtime.
 
 #![cfg_attr(all(doc, CHANNEL_NIGHTLY), feature(doc_auto_cfg))]
 #![deny(unused_must_use)]

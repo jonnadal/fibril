@@ -1,8 +1,12 @@
-//! This module specifies the core types for the Fibril library.
+//! This module specifies the core types for the [Fibril](https://docs.rs/fibril/) library.
 //!
 //! # Usage
 //!
-//! Please see [the `fibril_verifier` docs](https://docs.rs/fibril_verifier/).
+//! Please see the [the `fibril_verifier` docs](https://docs.rs/fibril_verifier/).
+//!
+//! # Features
+//!
+//! - `serde`: Implement `Serialize` and `Deserialize` where applicable.
 
 #![cfg_attr(all(doc, CHANNEL_NIGHTLY), feature(doc_auto_cfg))]
 // Support using Fibril core without the standard library.
