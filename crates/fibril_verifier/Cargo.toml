@@ -12,9 +12,8 @@ keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 
 [dependencies]
 colorful = "0.2"
+consistency_model = { path = "../consistency_model", version = "0" }
+fibril = { path = "../fibril", features = ["fibers", "rt", "serde_json"] }
 fibril_core = { path = "../fibril_core", version = "0", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 vector_clock = { path = "../vector_clock", version = "0", features = ["serde"] }
-
-[dev-dependencies]
-fibril = { path = "../fibril", features = ["fibers", "rt", "serde_json"] }

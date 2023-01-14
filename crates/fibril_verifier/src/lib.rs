@@ -90,6 +90,7 @@
 #![deny(unused_must_use)]
 #![warn(rust_2018_idioms, unreachable_pub)]
 
+mod consistency_client;
 mod trace_record;
 mod trace_tree;
 mod verifier;
@@ -134,11 +135,17 @@ macro_rules! assert_trace_ {
     );
 }
 
+pub use consistency_client::ConsistencyClient;
+
+pub use consistency_client::RequestId;
+
+pub use verifier::RunResult;
+
+pub use consistency_client::Synchronous;
+
 pub use trace_record::TraceRecord;
 
 pub use visitor::TraceRecordingVisitor;
-
-pub use verifier::RunResult;
 
 pub use verifier::Verifier;
 
