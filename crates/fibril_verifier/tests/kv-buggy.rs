@@ -1,4 +1,3 @@
-
 use {
     consistency_model::{LinearizabilityTester, Register, RegisterOp, RegisterRet},
     fibril::{Fiber, Sdk},
@@ -116,33 +115,25 @@ fn is_not_linearizable() {
         let server2 = cfg.spawn(Fiber::new(server));
         cfg.spawn(
             ConsistencyClient::new(LinearizabilityTester::new(Register::default()))
+                // This example isn't linearizable even without concurrency.
                 .thread([
                     (server1, RegisterOp::Write("A".into())),
-                    (server2, RegisterOp::Read)
-                ])
-                .thread([
-                        (server1, RegisterOp::Write("A".into())),
-                        (server2, RegisterOp::Read)
+                    (server2, RegisterOp::Read),
                 ])
                 .into_behavior(),
         );
     });
-    let (msg, trace) = verifier.assert_panic();
-    assert!(msg.contains("is_consistent"));
+    let (_msg, trace) = verifier.assert_panic();
     assert_trace![
         trace,
         "SpawnOk(:0)@<> → :0 → Recv@<1 0 0>",
         "SpawnOk(:1)@<> → :1 → Recv@<0 1 0>",
         "SpawnOk(:2)@<> → :2 → Send(:0, Put(RequestId(100), \"A\"))@<0 0 1>",
         "RecvOk(:2, Put(RequestId(100), \"A\"))@<0 0 1> → :0 → Send(:2, PutOk(RequestId(100)))@<2 0 1>",
-        "SendOk@<> → :0 → Recv@<3 0 1>",
-        "SendOk@<> → :2 → Send(:0, Put(RequestId(200), \"A\"))@<0 0 2>",
-        "RecvOk(:2, Put(RequestId(200), \"A\"))@<0 0 2> → :0 → Send(:2, PutOk(RequestId(200)))@<4 0 2>",
-        "SendOk@<> → :2 → Recv@<0 0 3>",
-        "RecvOk(:0, PutOk(RequestId(100)))@<2 0 1> → :2 → Send(:1, Get(RequestId(300)))@<2 0 4>",
-        "RecvOk(:2, Get(RequestId(300)))@<2 0 4> → :1 → Send(:2, GetOk(RequestId(300), \"\"))@<2 2 4>",
-        "SendOk@<> → :2 → Recv@<2 0 5>",
-        "RecvOk(:0, PutOk(RequestId(200)))@<4 0 2> → :2 → Recv@<4 0 6>",
-        "RecvOk(:1, GetOk(RequestId(300), \"\"))@<2 2 4> → :2 → Panic(\"assertion failed: self.tester.is_consistent()\")@<4 2 7>",
+        "SendOk@<> → :2 → Recv@<0 0 2>",
+        "RecvOk(:0, PutOk(RequestId(100)))@<2 0 1> → :2 → Send(:1, Get(RequestId(200)))@<2 0 3>",
+        "RecvOk(:2, Get(RequestId(200)))@<2 0 3> → :1 → Send(:2, GetOk(RequestId(200), \"\"))@<2 2 3>",
+        "SendOk@<> → :2 → Recv@<2 0 4>",
+        "RecvOk(:1, GetOk(RequestId(200), \"\"))@<2 2 3> → :2 → Panic(\"assertion failed: self.tester.is_consistent()\")@<2 2 5>",
     ];
 }
