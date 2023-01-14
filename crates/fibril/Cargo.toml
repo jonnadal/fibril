@@ -10,6 +10,10 @@ readme = "../../README.md"
 categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
 keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 
+[build-dependencies]
+rustc_version = "0.4.0"
+    #^ This build dependency can be removed once doc_auto_cfg stabilizes.
+
 [dependencies]
 fibril_core = { path = "../fibril_core", version = "0" }
 
@@ -45,3 +49,6 @@ rt = ["dep:futures", "dep:tokio", "dep:serde", "dep:tracing"]
     #^ Include a UDP runtime.
 serde_json = ["dep:serde_json"]
     #^ Include a new_with_serde_json helper in the UDP runtime.
+
+[package.metadata.docs.rs]
+all-features = true
