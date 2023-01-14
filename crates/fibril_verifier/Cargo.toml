@@ -6,15 +6,15 @@ edition = "2021"
 authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
 description = "Verifies behavior for distributed systems implemented with the Fibril library."
 repository = "https://github.com/jonnadal/fibril"
-readme = "../README.md"
+readme = "../../README.md"
 categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
 keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 
 [dependencies]
 colorful = "0.2"
-fibril_core = { path = "../core", version = "0", features = ["serde"] }
+fibril_core = { path = "../fibril_core", version = "0", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 vector_clock = { path = "../vector_clock", version = "0", features = ["serde"] }
 
 [dev-dependencies]
-fibril = { path = "../fiber", features = ["serde_json", "rt"] }
+fibril = { path = "../fibril", features = ["serde_json", "rt"] }

@@ -1,2 +1,7 @@
 [workspace]
-members = ["core", "fiber", "vector_clock", "verifier"]
+members = [
+    "crates/fibril",
+    "crates/fibril_core",
+    "crates/fibril_verifier",
+    "crates/vector_clock",
+]
