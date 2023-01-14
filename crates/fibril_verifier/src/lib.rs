@@ -199,7 +199,7 @@ pub enum RunResult<M> {
 /// Additional notes:
 ///
 /// 1. I believe the algorithm only relies on recording events corresponding with nondeterministic
-///    commands (such as [`Event::RecvOk`] for [`Command::Recv`]) in the trace trees. For
+///    commands (such as [`Event::RecvOk`] for [`Command::Recv`]) in the wakeup trees. For
 ///    debuggability the current implementation also records events corresponding with
 ///    deterministic commands (such as [`Event::SendOk`] for [`Command::Send`]).
 /// 2. The implementation could persist event _fingerprints_ (digests) rather than the specific
