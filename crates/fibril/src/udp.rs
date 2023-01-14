@@ -1,5 +1,5 @@
 use {
-    crate::{Command, Event, Id, Step},
+    fibril_core::{Command, Event, Id, Step},
     std::{
         fmt::Debug,
         net::{Ipv4Addr, SocketAddrV4, UdpSocket},
@@ -192,6 +192,7 @@ impl<M> UdpRuntime<M> {
                         }
                         Event::SendOk
                     }
+                    command => panic!("{command:?} is not supported at this time."),
                 };
                 if tx_events.send(next_event).await.is_err() {
                     info!("Cleanly interrupted {} I/O handler for shutdown.", id);
@@ -222,6 +223,7 @@ mod tests {
                 Event::SpawnOk(_) => Command::Recv,
                 Event::RecvOk(src, msg) => Command::Send(src, msg),
                 Event::SendOk => Command::Exit,
+                event => panic!("{event:?} was not expected."),
             }
         });
         rt.spawn(move || {
@@ -233,6 +235,7 @@ mod tests {
                     assert_eq!(msg, "One".to_string());
                     Command::Exit
                 }
+                event => panic!("{event:?} was not expected."),
             }
         });
         rt.join().unwrap();

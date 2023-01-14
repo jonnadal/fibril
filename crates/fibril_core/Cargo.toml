@@ -10,36 +10,15 @@ readme = "../../README.md"
 categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
 keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 
-[dependencies.futures]
-optional = true
-version = "0.3"
-
 [dependencies.serde]
 optional = true
 version = "1"
 features = ["derive"]
 
-[dependencies.serde_json]
-optional = true
-version = "1"
-
-[dependencies.tracing]
-optional = true
-version = "0.1"
-
-[dependencies.tokio]
-optional = true
-version = "1"
-features = ["net", "rt-multi-thread", "sync", "time"]
-
 [features]
 default = ["std"]
-rt = ["dep:futures", "dep:tokio", "dep:tracing"]
-    #^ Include a UDP runtime.
 serde = ["dep:serde"]
     #^ Include Serialize/Deserialize implementations for Command/Effect/Id.
-serde_json = ["dep:serde_json", "serde"]
-    #^ Include a new_with_serde_json helper in the UDP runtime.
 std = []
     #^ Provide impls for common standard library types like Vec<T> and HashMap<K, V>.
     #^ Requires a dependency on the Rust standard library.

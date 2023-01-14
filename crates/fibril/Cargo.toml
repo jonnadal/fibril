@@ -11,10 +11,37 @@ categories = ["algorithms", "concurrency", "development-tools", "network-program
 keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
 
 [dependencies]
-corosensei = "0.1"
 fibril_core = { path = "../fibril_core", version = "0" }
 
+[dependencies.corosensei]
+optional = true
+version = "0.1"
+
+[dependencies.futures]
+optional = true
+version = "0.3"
+
+[dependencies.serde]
+optional = true
+version = "1"
+features = ["derive"]
+
+[dependencies.serde_json]
+optional = true
+version = "1"
+
+[dependencies.tracing]
+optional = true
+version = "0.1"
+
+[dependencies.tokio]
+optional = true
+version = "1"
+features = ["net", "rt-multi-thread", "sync", "time"]
+
 [features]
-serde = ["fibril_core/serde"]
-serde_json = ["fibril_core/serde_json"]
-rt = ["fibril_core/rt"]
+fibers = ["dep:corosensei"]
+rt = ["dep:futures", "dep:tokio", "dep:serde", "dep:tracing"]
+    #^ Include a UDP runtime.
+serde_json = ["dep:serde_json"]
+    #^ Include a new_with_serde_json helper in the UDP runtime.

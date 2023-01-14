@@ -17,4 +17,4 @@ serde = { version = "1", features = ["derive"] }
 vector_clock = { path = "../vector_clock", version = "0", features = ["serde"] }
 
 [dev-dependencies]
-fibril = { path = "../fibril", features = ["serde_json", "rt"] }
+fibril = { path = "../fibril", features = ["fibers", "rt", "serde_json"] }

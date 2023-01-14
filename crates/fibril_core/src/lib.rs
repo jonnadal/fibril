@@ -7,8 +7,6 @@
 #![warn(rust_2018_idioms, unreachable_pub)]
 
 mod id;
-#[cfg(feature = "rt")]
-mod udp;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -44,6 +42,3 @@ where
         self(event)
     }
 }
-
-#[cfg(feature = "rt")]
-pub use udp::UdpRuntime;

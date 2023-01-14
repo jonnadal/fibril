@@ -4,7 +4,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! fibril = { version = "0", features = ["serde_json", "rt"] }
+//! fibril = { version = "0", features = ["fibers", "rt", "serde_json"] }
 //! serde = { version = "1", features = ["derive"] }
 //!
 //! [dev-dependencies]
