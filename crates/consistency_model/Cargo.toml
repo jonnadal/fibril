@@ -1,0 +1,22 @@
+[package]
+name = "consistency_model"
+license = "MIT OR Apache-2.0"
+version = "0.0.0"
+edition = "2021"
+authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
+description = "A tester for distributed system consistency properties like linearizability and sequential consistency."
+repository = "https://github.com/jonnadal/fibril"
+categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
+keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
+
+[dependencies.serde]
+optional = true
+version = "1"
+features = ["derive"]
+
+[features]
+serde = ["dep:serde"]
+    #^ Implements Serialize/Deserialize where applicable.
+
+[package.metadata.docs.rs]
+all-features = true

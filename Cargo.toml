@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/consistency_model",
     "crates/fibril",
     "crates/fibril_core",
     "crates/fibril_verifier",
