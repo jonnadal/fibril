@@ -1,4 +1,8 @@
 //! This module specifies the core types for the Fibril library.
+//!
+//! # Usage
+//!
+//! Please see [the `fibril_verifier` docs](https://docs.rs/fibril_verifier/).
 
 // Support using Fibril core without the standard library.
 #![cfg_attr(not(feature = "std"), no_std)]
