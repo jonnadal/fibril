@@ -167,18 +167,36 @@ where
         M: Clone + PartialEq,
     {
         for (i, ri) in self.trace_records.iter().enumerate().rev() {
-            if !matches!(ri.event, Event::RecvOk(_, _)) {
+            let (src_i, _msg_i) = if let Event::RecvOk(src, msg) = &ri.event {
+                (src, msg)
+            } else {
                 continue; // b/c event is deterministic
-            }
+            };
             for (j, rj) in self.trace_records.iter().enumerate().take(i).rev() {
                 if rj.id != ri.id {
                     continue; // b/c event is for a different actor
                 }
-                if !matches!(rj.event, Event::RecvOk(_, _)) {
+                let (src_j, _msg_j) = if let Event::RecvOk(src, msg) = &rj.event {
+                    (src, msg)
+                } else {
                     continue; // b/c event is deterministic
-                }
+                };
                 if ri.event_clock >= rj.clock {
-                    continue; // b/c not enabled earlier
+                    continue; // b/c dependent
+                }
+                if src_i == src_j {
+                    continue; // b/c queued
+                }
+                // The above condition handles the case where the events for i and j are from
+                // the same sender. We also have to compare the events *between* i and j.
+                if self.trace_records.iter().take(i).skip(j + 1).any(|r| {
+                    if let Event::RecvOk(src_r, _msg_r) = &r.event {
+                        src_i == src_r
+                    } else {
+                        false
+                    }
+                }) {
+                    continue; // b/c queued
                 }
                 if self.actors[rj.id].trace_tree.visited(
                     self.trace_records
@@ -636,6 +654,100 @@ mod test {
             "SendOk@<> → :1 → Exit@<0 3 0 2>",
             "SendOk@<> → :2 → Exit@<0 0 3 3>",
             "SendOk@<> → :3 → Exit@<0 0 0 4>",
+        ];
+    }
+
+    #[test]
+    /// This is a regression test for a bug discovered while implementing the "ABD"
+    /// atomic/linearizable register algorithm.
+    fn respects_network_queuing_from_self_send() {
+        let (record, replay) = TraceRecordingVisitor::new_with_replay();
+        let mut verifier = Verifier::new(|cfg| {
+            cfg.spawn(Fiber::new(|sdk| {
+                sdk.send(sdk.id(), "FIRST IN LINE");
+                sdk.send(sdk.id(), "SECOND IN LINE");
+                sdk.recv();
+                sdk.recv();
+            }));
+        })
+        .visitor(record);
+        verifier.assert_no_panic();
+
+        let traces = replay();
+        assert_eq!(traces.len(), 1); // cannot reverse the message schedule
+        assert_trace![
+            traces[0],
+            "SpawnOk(:0)@<> → :0 → Send(:0, \"FIRST IN LINE\")@<1>",
+            "SendOk@<> → :0 → Send(:0, \"SECOND IN LINE\")@<2>",
+            "SendOk@<> → :0 → Recv@<3>",
+            "RecvOk(:0, \"FIRST IN LINE\")@<1> → :0 → Recv@<4>",
+            "RecvOk(:0, \"SECOND IN LINE\")@<2> → :0 → Exit@<5>",
+        ];
+    }
+
+    #[test]
+    /// This is a regression test for a bug discovered while implementing the "ABD"
+    /// atomic/linearizable register algorithm.
+    fn respects_network_queuing_from_client_send() {
+        let (record, replay) = TraceRecordingVisitor::new_with_replay();
+        let mut verifier = Verifier::new(|cfg| {
+            let server = cfg.spawn(Fiber::new(|sdk| {
+                sdk.recv();
+                sdk.recv();
+                sdk.recv();
+            }));
+            cfg.spawn(Fiber::new(move |sdk| {
+                sdk.send(server, "FIRST IN LINE FROM C1");
+                sdk.send(server, "SECOND IN LINE FROM C1");
+            }));
+            cfg.spawn(Fiber::new(move |sdk| {
+                sdk.send(server, "CONCURRENT FROM C2");
+            }));
+        })
+        .visitor(record);
+        verifier.assert_no_panic();
+
+        let traces = replay();
+        assert_eq!(traces.len(), 3);
+
+        // Case 1: FIRST IN LINE FROM C1, SECOND IN LINE FROM C1, CONCURRENT FROM C2
+        assert_trace![
+            traces[0],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0>",
+            "SpawnOk(:1)@<> → :1 → Send(:0, \"FIRST IN LINE FROM C1\")@<0 1 0>",
+            "RecvOk(:1, \"FIRST IN LINE FROM C1\")@<0 1 0> → :0 → Recv@<2 1 0>",
+            "SendOk@<> → :1 → Send(:0, \"SECOND IN LINE FROM C1\")@<0 2 0>",
+            "RecvOk(:1, \"SECOND IN LINE FROM C1\")@<0 2 0> → :0 → Recv@<3 2 0>",
+            "SendOk@<> → :1 → Exit@<0 3 0>",
+            "SpawnOk(:2)@<> → :2 → Send(:0, \"CONCURRENT FROM C2\")@<0 0 1>",
+            "RecvOk(:2, \"CONCURRENT FROM C2\")@<0 0 1> → :0 → Exit@<4 2 1>",
+            "SendOk@<> → :2 → Exit@<0 0 2>",
+        ];
+        // Case 2: FIRST IN LINE FROM C1, CONCURRENT FROM C2, SECOND IN LINE FROM C1
+        assert_trace![
+            traces[1],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0>",
+            "SpawnOk(:1)@<> → :1 → Send(:0, \"FIRST IN LINE FROM C1\")@<0 1 0>",
+            "RecvOk(:1, \"FIRST IN LINE FROM C1\")@<0 1 0> → :0 → Recv@<2 1 0>",
+            "SendOk@<> → :1 → Send(:0, \"SECOND IN LINE FROM C1\")@<0 2 0>",
+            "SpawnOk(:2)@<> → :2 → Send(:0, \"CONCURRENT FROM C2\")@<0 0 1>",
+            "RecvOk(:2, \"CONCURRENT FROM C2\")@<0 0 1> → :0 → Recv@<3 1 1>",
+            "RecvOk(:1, \"SECOND IN LINE FROM C1\")@<0 2 0> → :0 → Exit@<4 2 1>",
+            "SendOk@<> → :1 → Exit@<0 3 0>",
+            "SendOk@<> → :2 → Exit@<0 0 2>",
+        ];
+        // Case 3: CONCURRENT FROM C2, FIRST IN LINE FROM C1, SECOND IN LINE FROM C1
+        assert_trace![
+            traces[2],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0>",
+            "SpawnOk(:1)@<> → :1 → Send(:0, \"FIRST IN LINE FROM C1\")@<0 1 0>",
+            "SpawnOk(:2)@<> → :2 → Send(:0, \"CONCURRENT FROM C2\")@<0 0 1>",
+            "RecvOk(:2, \"CONCURRENT FROM C2\")@<0 0 1> → :0 → Recv@<2 0 1>",
+            "RecvOk(:1, \"FIRST IN LINE FROM C1\")@<0 1 0> → :0 → Recv@<3 1 1>",
+            "SendOk@<> → :1 → Send(:0, \"SECOND IN LINE FROM C1\")@<0 2 0>",
+            "RecvOk(:1, \"SECOND IN LINE FROM C1\")@<0 2 0> → :0 → Exit@<4 2 1>",
+            "SendOk@<> → :1 → Exit@<0 3 0>",
+            "SendOk@<> → :2 → Exit@<0 0 2>",
         ];
     }
 }
