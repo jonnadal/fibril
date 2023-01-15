@@ -60,7 +60,7 @@ impl<'a, M> Sdk<'a, M> {
     }
 
     pub fn recv_response_count(&self, count: usize, filter: impl Fn(Id, M) -> bool) {
-        self.recv_btree_set(count, |src, msg| filter(src, msg).then(|| src));
+        self.recv_btree_set(count, |src, msg| filter(src, msg).then_some(src));
     }
 
     pub fn recv_responses<V>(
