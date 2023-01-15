@@ -47,7 +47,7 @@ fn has_expected_traces() {
     verifier.assert_no_panic();
 
     let traces = replay();
-    assert_eq!(traces.len(), 6);
+    assert_eq!(traces.len(), 6); // 3! b/c 3 messages race
     assert_trace![
         traces[0],
         "SpawnOk(:0)@<> → :0 → Recv@<1 0 0 0>",

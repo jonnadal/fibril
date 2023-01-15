@@ -137,6 +137,31 @@ where
         }
     }
 
+    /// Walks the latest trace in reverse to find a `RecvOk` record (step `i`). Then continues
+    /// walking to find a `RecvOk` record for the same recipient earlier in the trace (step
+    /// `j`).  Returns a prefix that reverses the race if the event at step `i` was enabled
+    /// earlier at step `j` (i.e. if the event at step `i` is not "caused by" the completion of
+    /// step `j`). For instance...
+    ///
+    /// ```text
+    /// 0. trace_records[0]: SpawnOk(:0)@<> → :0@<1>
+    /// ...
+    /// j. trace_records[j]: RecvOk(src1, m1)@ec1 → dst@(ac1 + ec1)
+    /// ...
+    /// i. trace_records[i]: RecvOk(src2, m2)@ec2 → dst@(ac2 + ec2)
+    /// ...
+    /// ```
+    ///
+    /// ... is reversable if `ec2` is not greater than or equal to `ac1 + ec1`, becoming the
+    /// following (and note that the racing delivery might not be scheduled as it's possible
+    /// that the recipient exited or panicked after the reversal):
+    ///
+    /// ```text
+    /// 0. trace_records[0]: SpawnOk(0)@<> → :0@<1>
+    /// ...
+    /// j. trace_records[i]: RecvOk(src2, m2)@ec2 → dst@(ac1 + ec2)
+    /// ...
+    /// ```
     fn find_next_reversible_race(&mut self) -> Option<Vec<(Id, Event<M>, VectorClock)>>
     where
         M: Clone + PartialEq,
@@ -152,7 +177,7 @@ where
                 if !matches!(rj.event, Event::RecvOk(_, _)) {
                     continue; // b/c event is deterministic
                 }
-                if ri.event_clock.partial_cmp(&rj.clock) == Some(std::cmp::Ordering::Greater) {
+                if ri.event_clock >= rj.clock {
                     continue; // b/c not enabled earlier
                 }
                 if self.actors[rj.id].trace_tree.visited(
@@ -178,7 +203,45 @@ where
                     }
                 }
                 race.push((ri.id, ri.event.clone(), ri.event_clock.clone()));
+                if std::env::var("FIBRIL_DEBUG").is_ok() {
+                    println!("Trace records with pending reversal:");
+                    for (k, r) in self.trace_records.iter().enumerate() {
+                        let msg = format!(
+                            "{k: >3}{}. {r}",
+                            if k == i {
+                                " (i)"
+                            } else if k == j {
+                                " (j)"
+                            } else {
+                                ""
+                            }
+                        );
+                        if k == i || k == j {
+                            println!("{}", msg.color(colorful::Color::Red));
+                        } else {
+                            println!("{msg}");
+                        }
+                    }
+                    println!("Reversal prefix:");
+                    for (k, (pid, event, event_clock)) in race.iter().enumerate() {
+                        let msg = format!(
+                            "{k: >3}{}. {event:?}@{event_clock} → {pid}",
+                            if k == j { " (j)" } else { "" }
+                        );
+                        if k >= j {
+                            println!("{}", msg.color(colorful::Color::Red));
+                        } else {
+                            println!("{msg}");
+                        }
+                    }
+                }
                 return Some(race);
+            }
+        }
+        if std::env::var("FIBRIL_DEBUG").is_ok() {
+            println!("Trace records with no pending reversal:");
+            for (k, r) in self.trace_records.iter().enumerate() {
+                println!("{k: >3}. {r}");
             }
         }
         None
@@ -289,13 +352,14 @@ where
         self.reset_actors();
 
         for (id, event, event_clock) in prefix {
-            if let Event::RecvOk(src, _msg) = &event {
+            if let Event::RecvOk(src, expected_msg) = &event {
                 let actor = &mut self.actors[id];
                 let inbox = &mut actor.inbox_by_src[*src];
-                let (_m, m_clock) = match inbox.pop_front() {
+                let (m, m_clock) = match inbox.pop_front() {
                     None => panic!("- Inbox empty. id={id:?}"),
                     Some(pair) => pair,
                 };
+                assert_eq!(expected_msg, &m);
                 actor.clock.merge_in(&m_clock);
             }
             self.step(id, event, event_clock);
@@ -389,5 +453,189 @@ where
     pub fn visitor(mut self, visitor: impl Visitor<M> + 'static) -> Self {
         self.visitors.push(Box::new(visitor));
         self
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use {
+        super::*,
+        crate::{assert_trace, TraceRecordingVisitor},
+        fibril::Fiber,
+    };
+
+    #[test]
+    /// Regression test for an earlier bug in the source sets implementation.
+    fn does_not_reverse_dependent_recv_ok() {
+        let (record, replay) = TraceRecordingVisitor::new_with_replay();
+        let mut verifier = Verifier::new(|cfg| {
+            let server = cfg.spawn(Fiber::new(|sdk| {
+                sdk.recv();
+                sdk.send(sdk.id(), "FROM SERVER");
+                sdk.recv();
+            }));
+
+            cfg.spawn(Fiber::new(move |sdk| {
+                sdk.send(server, "FROM CLIENT");
+            }));
+        })
+        .visitor(record);
+        verifier.assert_no_panic();
+        let traces = replay();
+        assert_eq!(traces.len(), 1);
+        assert_trace![
+            traces[0],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0>",
+            "SpawnOk(:1)@<> → :1 → Send(:0, \"FROM CLIENT\")@<0 1>",
+            "RecvOk(:1, \"FROM CLIENT\")@<0 1> → :0 → Send(:0, \"FROM SERVER\")@<2 1>",
+            "SendOk@<> → :0 → Recv@<3 1>",
+            "RecvOk(:0, \"FROM SERVER\")@<2 1> → :0 → Exit@<4 1>",
+            "SendOk@<> → :1 → Exit@<0 2>",
+        ];
+    }
+
+    #[test]
+    /// When implementing the fix for `does_not_reverse_dependent_recv_ok`, I temporarily broke the
+    /// `registry` example. I'm maintaining a minimal repro in this module even though there's
+    /// already an integration test for the crate.
+    fn reverses_recv_ok_enabled_before_earlier_racing_step_clock() {
+        let (record, replay) = TraceRecordingVisitor::new_with_replay();
+        let mut verifier = Verifier::new(|cfg| {
+            let registry = cfg.spawn(Fiber::new(|sdk| {
+                sdk.recv();
+                sdk.recv();
+                sdk.recv();
+            }));
+            let worker1 = cfg.spawn(Fiber::new(move |sdk| {
+                sdk.recv();
+                sdk.send(registry, "W1");
+            }));
+            let worker2 = cfg.spawn(Fiber::new(move |sdk| {
+                sdk.recv();
+                sdk.send(registry, "W2");
+            }));
+            cfg.spawn(Fiber::new(move |sdk| {
+                sdk.send(registry, "CLIENT");
+                sdk.send(worker1, "GO");
+                sdk.send(worker2, "GO");
+            }));
+        })
+        .visitor(record);
+        verifier.assert_no_panic();
+
+        let traces = replay();
+        assert_eq!(traces.len(), 6); // 3! b/c 3 messages race
+
+        // Case 1: registration order is CLIENT, W1, W2.
+        assert_trace![
+            traces[0],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0 0>",
+            "SpawnOk(:1)@<> → :1 → Recv@<0 1 0 0>",
+            "SpawnOk(:2)@<> → :2 → Recv@<0 0 1 0>",
+            "SpawnOk(:3)@<> → :3 → Send(:0, \"CLIENT\")@<0 0 0 1>",
+            "RecvOk(:3, \"CLIENT\")@<0 0 0 1> → :0 → Recv@<2 0 0 1>",
+            "SendOk@<> → :3 → Send(:1, \"GO\")@<0 0 0 2>",
+            "RecvOk(:3, \"GO\")@<0 0 0 2> → :1 → Send(:0, \"W1\")@<0 2 0 2>",
+            "RecvOk(:1, \"W1\")@<0 2 0 2> → :0 → Recv@<3 2 0 2>",
+            "SendOk@<> → :1 → Exit@<0 3 0 2>",
+            "SendOk@<> → :3 → Send(:2, \"GO\")@<0 0 0 3>",
+            "RecvOk(:3, \"GO\")@<0 0 0 3> → :2 → Send(:0, \"W2\")@<0 0 2 3>",
+            "RecvOk(:2, \"W2\")@<0 0 2 3> → :0 → Exit@<4 2 2 3>",
+            "SendOk@<> → :2 → Exit@<0 0 3 3>",
+            "SendOk@<> → :3 → Exit@<0 0 0 4>",
+        ];
+        // Case 2: registration order is CLIENT, W2, W1.
+        assert_trace![
+            traces[1],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0 0>",
+            "SpawnOk(:1)@<> → :1 → Recv@<0 1 0 0>",
+            "SpawnOk(:2)@<> → :2 → Recv@<0 0 1 0>",
+            "SpawnOk(:3)@<> → :3 → Send(:0, \"CLIENT\")@<0 0 0 1>",
+            "RecvOk(:3, \"CLIENT\")@<0 0 0 1> → :0 → Recv@<2 0 0 1>",
+            "SendOk@<> → :3 → Send(:1, \"GO\")@<0 0 0 2>",
+            "RecvOk(:3, \"GO\")@<0 0 0 2> → :1 → Send(:0, \"W1\")@<0 2 0 2>",
+            "SendOk@<> → :3 → Send(:2, \"GO\")@<0 0 0 3>",
+            "RecvOk(:3, \"GO\")@<0 0 0 3> → :2 → Send(:0, \"W2\")@<0 0 2 3>",
+            "RecvOk(:2, \"W2\")@<0 0 2 3> → :0 → Recv@<3 0 2 3>",
+            "RecvOk(:1, \"W1\")@<0 2 0 2> → :0 → Exit@<4 2 2 3>",
+            "SendOk@<> → :1 → Exit@<0 3 0 2>",
+            "SendOk@<> → :2 → Exit@<0 0 3 3>",
+            "SendOk@<> → :3 → Exit@<0 0 0 4>",
+        ];
+        // Case 3: registration order is W1, CLIENT, W2.
+        assert_trace![
+            traces[2],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0 0>",
+            "SpawnOk(:1)@<> → :1 → Recv@<0 1 0 0>",
+            "SpawnOk(:2)@<> → :2 → Recv@<0 0 1 0>",
+            "SpawnOk(:3)@<> → :3 → Send(:0, \"CLIENT\")@<0 0 0 1>",
+            "SendOk@<> → :3 → Send(:1, \"GO\")@<0 0 0 2>",
+            "RecvOk(:3, \"GO\")@<0 0 0 2> → :1 → Send(:0, \"W1\")@<0 2 0 2>",
+            "RecvOk(:1, \"W1\")@<0 2 0 2> → :0 → Recv@<2 2 0 2>",
+            "RecvOk(:3, \"CLIENT\")@<0 0 0 1> → :0 → Recv@<3 2 0 2>",
+            "SendOk@<> → :1 → Exit@<0 3 0 2>",
+            "SendOk@<> → :3 → Send(:2, \"GO\")@<0 0 0 3>",
+            "RecvOk(:3, \"GO\")@<0 0 0 3> → :2 → Send(:0, \"W2\")@<0 0 2 3>",
+            "RecvOk(:2, \"W2\")@<0 0 2 3> → :0 → Exit@<4 2 2 3>",
+            "SendOk@<> → :2 → Exit@<0 0 3 3>",
+            "SendOk@<> → :3 → Exit@<0 0 0 4>",
+        ];
+        // Case 4: registration order is W1, W2, CLIENT.
+        assert_trace![
+            traces[3],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0 0>",
+            "SpawnOk(:1)@<> → :1 → Recv@<0 1 0 0>",
+            "SpawnOk(:2)@<> → :2 → Recv@<0 0 1 0>",
+            "SpawnOk(:3)@<> → :3 → Send(:0, \"CLIENT\")@<0 0 0 1>",
+            "SendOk@<> → :3 → Send(:1, \"GO\")@<0 0 0 2>",
+            "RecvOk(:3, \"GO\")@<0 0 0 2> → :1 → Send(:0, \"W1\")@<0 2 0 2>",
+            "RecvOk(:1, \"W1\")@<0 2 0 2> → :0 → Recv@<2 2 0 2>",
+            "SendOk@<> → :3 → Send(:2, \"GO\")@<0 0 0 3>",
+            "RecvOk(:3, \"GO\")@<0 0 0 3> → :2 → Send(:0, \"W2\")@<0 0 2 3>",
+            "RecvOk(:2, \"W2\")@<0 0 2 3> → :0 → Recv@<3 2 2 3>",
+            "RecvOk(:3, \"CLIENT\")@<0 0 0 1> → :0 → Exit@<4 2 2 3>",
+            "SendOk@<> → :1 → Exit@<0 3 0 2>",
+            "SendOk@<> → :2 → Exit@<0 0 3 3>",
+            "SendOk@<> → :3 → Exit@<0 0 0 4>",
+        ];
+        // Case 5: registration order is W2, W1, CLIENT.
+        assert_trace![
+            traces[4],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0 0>",
+            "SpawnOk(:1)@<> → :1 → Recv@<0 1 0 0>",
+            "SpawnOk(:2)@<> → :2 → Recv@<0 0 1 0>",
+            "SpawnOk(:3)@<> → :3 → Send(:0, \"CLIENT\")@<0 0 0 1>",
+            "SendOk@<> → :3 → Send(:1, \"GO\")@<0 0 0 2>",
+            "RecvOk(:3, \"GO\")@<0 0 0 2> → :1 → Send(:0, \"W1\")@<0 2 0 2>",
+            "SendOk@<> → :3 → Send(:2, \"GO\")@<0 0 0 3>",
+            "RecvOk(:3, \"GO\")@<0 0 0 3> → :2 → Send(:0, \"W2\")@<0 0 2 3>",
+            "RecvOk(:2, \"W2\")@<0 0 2 3> → :0 → Recv@<2 0 2 3>",
+            "RecvOk(:1, \"W1\")@<0 2 0 2> → :0 → Recv@<3 2 2 3>",
+            "RecvOk(:3, \"CLIENT\")@<0 0 0 1> → :0 → Exit@<4 2 2 3>",
+            "SendOk@<> → :1 → Exit@<0 3 0 2>",
+            "SendOk@<> → :2 → Exit@<0 0 3 3>",
+            "SendOk@<> → :3 → Exit@<0 0 0 4>",
+        ];
+        // Case 5: registration order is W2, CLIENT, W1.
+        //
+        // This was missed in an earlier version of the fix because <0 0 0 1> ⪯ <3 2 2 3>, and the
+        // faulty "fix" was checking for _causally related_ as a condition for _not reversable_.
+        assert_trace![
+            traces[5],
+            "SpawnOk(:0)@<> → :0 → Recv@<1 0 0 0>",
+            "SpawnOk(:1)@<> → :1 → Recv@<0 1 0 0>",
+            "SpawnOk(:2)@<> → :2 → Recv@<0 0 1 0>",
+            "SpawnOk(:3)@<> → :3 → Send(:0, \"CLIENT\")@<0 0 0 1>",
+            "SendOk@<> → :3 → Send(:1, \"GO\")@<0 0 0 2>",
+            "RecvOk(:3, \"GO\")@<0 0 0 2> → :1 → Send(:0, \"W1\")@<0 2 0 2>",
+            "SendOk@<> → :3 → Send(:2, \"GO\")@<0 0 0 3>",
+            "RecvOk(:3, \"GO\")@<0 0 0 3> → :2 → Send(:0, \"W2\")@<0 0 2 3>",
+            "RecvOk(:2, \"W2\")@<0 0 2 3> → :0 → Recv@<2 0 2 3>",
+            "RecvOk(:3, \"CLIENT\")@<0 0 0 1> → :0 → Recv@<3 0 2 3>",
+            "RecvOk(:1, \"W1\")@<0 2 0 2> → :0 → Exit@<4 2 2 3>",
+            "SendOk@<> → :1 → Exit@<0 3 0 2>",
+            "SendOk@<> → :2 → Exit@<0 0 3 3>",
+            "SendOk@<> → :3 → Exit@<0 0 0 4>",
+        ];
     }
 }
