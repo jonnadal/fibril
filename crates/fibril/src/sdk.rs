@@ -59,10 +59,22 @@ impl<'a, M> Sdk<'a, M> {
         collected
     }
 
+    /// This is a helper based on [`Sdk::recv_btree_set`] for the case where an actor needs to
+    /// wait for `count` messages from distinct recipients (e.g. when awaiting
+    /// [quorum](https://en.wikipedia.org/wiki/Quorum_%28distributed_computing%29)).
+    ///
+    /// `count` will match the number of distinct [`Id`]s for which the `filter` returned
+    /// `true` (i.e. accepted messages from the same [`Id`] are only counted once).
     pub fn recv_response_count(&self, count: usize, filter: impl Fn(Id, M) -> bool) {
         self.recv_btree_set(count, |src, msg| filter(src, msg).then_some(src));
     }
 
+    /// This is a helper based on [`Sdk::recv_btree_map`] for the case where an actor needs to
+    /// wait for `count` messages from distinct recipients (e.g. when awaiting
+    /// [quorum](https://en.wikipedia.org/wiki/Quorum_%28distributed_computing%29)).
+    ///
+    /// `count` will match the number of distinct [`Id`]s for which the `filter_map` returned
+    /// `Some(...)` (i.e. accepted messages from the same [`Id`] are only counted once).
     pub fn recv_responses<V>(
         &self,
         count: usize,
