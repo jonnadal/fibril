@@ -110,7 +110,7 @@ macro_rules! assert_trace {
     };
     // Case 2: Expected record(s) specified. Requires recursion.
     [$records:expr, $str:tt, $($rest:tt)*] => {
-        fibril_verifier::assert_trace_![0 => $records, $str, $($rest)*];
+        $crate::assert_trace_![0 => $records, $str, $($rest)*];
     };
 }
 
@@ -131,7 +131,7 @@ macro_rules! assert_trace_ {
     // Inductive case: assert and recurse.
     ($i:expr => $records:expr, $str:tt, $($rest:tt)*) => (
         assert_eq!($records[$i].to_string().as_str(), $str, "at [{}]", $i);
-        fibril_verifier::assert_trace_!($i + 1 => $records, $($rest)*);
+        $crate::assert_trace_!($i + 1 => $records, $($rest)*);
     );
 }
 
