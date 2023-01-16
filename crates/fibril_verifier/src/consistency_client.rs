@@ -66,11 +66,11 @@ where
         RefObj::Ret: Clone + Debug,
     {
         Fiber::<Msg>::new(move |sdk| {
-            let mut in_flight = vec![None; self.threads.len()];
+            let mut thread_to_req_id = vec![None; self.threads.len()];
             let mut next_req_id = RequestId(100);
             for (thread_i, pairs) in self.threads.iter_mut().enumerate() {
                 if let Some((dst, op)) = pairs.pop_front() {
-                    in_flight[thread_i] = Some(next_req_id);
+                    thread_to_req_id[thread_i] = Some(next_req_id);
                     let msg = Msg::encode_request(next_req_id, &op);
                     self.tester.on_invoke(thread_i.into(), op).unwrap();
                     assert!(self.tester.is_consistent());
@@ -79,9 +79,9 @@ where
                 }
             }
             loop {
-                let (src, msg) = sdk.recv();
+                let (_src, msg) = sdk.recv();
                 let (req_id, ret) = msg.decode_response();
-                let thread_i = in_flight
+                let thread_i = thread_to_req_id
                     .iter()
                     .enumerate()
                     .find(|(_i, ri)| **ri == Some(req_id))
@@ -89,8 +89,8 @@ where
                     .0;
                 self.tester.on_return(thread_i.into(), ret).unwrap();
                 assert!(self.tester.is_consistent());
-                if let Some((dst, op)) = self.threads[src].pop_front() {
-                    in_flight[thread_i] = Some(next_req_id);
+                if let Some((dst, op)) = self.threads[thread_i].pop_front() {
+                    thread_to_req_id[thread_i] = Some(next_req_id);
                     let msg = Msg::encode_request(next_req_id, &op);
                     self.tester.on_invoke(thread_i.into(), op).unwrap();
                     assert!(self.tester.is_consistent());
