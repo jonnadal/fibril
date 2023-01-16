@@ -1,6 +1,6 @@
 use {
     crate::{trace_tree::TraceTree, TraceRecord, Visitor},
-    colorful::{Colorful, HSL},
+    colorful::Colorful,
     fibril_core::{Command, Event, Id, Step},
     std::{
         collections::VecDeque,
@@ -316,9 +316,11 @@ where
 
     pub fn run(&mut self) -> RunResult<M> {
         let mut trace_count = 0;
-        while trace_count < 1024 {
+        while trace_count < 1024 * 1024 {
             trace_count += 1;
-            println!("\n=== Maximal {} ===", trace_count);
+            if std::env::var("FIBRIL_DEBUG").is_ok() || trace_count % 4096 == 0 {
+                println!("\n=== Maximal {} ===", trace_count);
+            }
             let prefix = self.next_prefix.drain(..).collect();
             if let Err(panic) = catch_unwind(AssertUnwindSafe(|| self.run_until_maximal(prefix))) {
                 let message = if let Some(panic) = panic.downcast_ref::<&'static str>() {
@@ -330,20 +332,6 @@ where
                 };
                 let last_trace_record = self.trace_records.last_mut().unwrap();
                 last_trace_record.command = Command::Panic(message.clone());
-                let color = HSL::new(
-                    1.0 * usize::from(last_trace_record.id) as f32 / self.actors.len() as f32,
-                    0.5,
-                    0.5,
-                );
-                println!(
-                    "{}",
-                    format!(
-                        "■ {clock} {id} → Panic({message:?})",
-                        clock = last_trace_record.clock,
-                        id = last_trace_record.id
-                    )
-                    .color(color)
-                );
                 for v in &mut self.visitors {
                     v.on_maximal(&self.trace_records);
                 }
@@ -395,28 +383,8 @@ where
     fn step(&mut self, id: Id, event: Event<M>, event_clock: VectorClock) {
         let actors = &mut self.actors;
 
-        let color = HSL::new(1.0 * usize::from(id) as f32 / actors.len() as f32, 0.5, 0.5);
         let actor = &mut actors[id];
         actor.clock.increment(id.into());
-        match &event {
-            Event::SpawnOk(id) => println!(
-                "{}",
-                format!("► {clock} SpawnOk → {id}", clock = actor.clock).color(color)
-            ),
-            Event::RecvOk(src, m) => println!(
-                "{}",
-                format!(
-                    "► {clock} RecvOk[{src} → {m:?}] → {id}",
-                    clock = actor.clock
-                )
-                .color(color)
-            ),
-            Event::SendOk => println!(
-                "{}",
-                format!("► {clock} SendOk → {id}", clock = actor.clock).color(color)
-            ),
-            _ => unimplemented!(),
-        }
         self.trace_records.push(TraceRecord {
             event: event.clone(),
             event_clock,
@@ -426,38 +394,21 @@ where
         });
         let record = self.trace_records.last_mut().unwrap();
         let command = actor.behavior.step(event);
-        let clock = &actor.clock;
         actors[id].next_event = match &command {
-            Command::Exit => {
-                println!("{}", format!("■ {clock} {id} → Exit").color(color));
-                |_| None
-            }
-            Command::Panic(msg) => {
-                println!(
-                    "{}",
-                    format!("■ {clock} {id} → Panic({msg:?})").color(color)
-                );
-                |_| None
-            }
-            Command::Recv => {
-                println!("{}", format!("■ {clock} {id} → Recv").color(color));
-                |actor| {
-                    for (src, inbox) in actor.inbox_by_src.iter_mut().enumerate() {
-                        let (m, m_clock) = match inbox.pop_front() {
-                            None => continue,
-                            Some(pair) => pair,
-                        };
-                        actor.clock.merge_in(&m_clock);
-                        return Some((m_clock, Event::RecvOk(src.into(), m)));
-                    }
-                    None
+            Command::Exit => |_| None,
+            Command::Panic(_) => |_| None,
+            Command::Recv => |actor| {
+                for (src, inbox) in actor.inbox_by_src.iter_mut().enumerate() {
+                    let (m, m_clock) = match inbox.pop_front() {
+                        None => continue,
+                        Some(pair) => pair,
+                    };
+                    actor.clock.merge_in(&m_clock);
+                    return Some((m_clock, Event::RecvOk(src.into(), m)));
                 }
-            }
+                None
+            },
             Command::Send(dst, m) => {
-                println!(
-                    "{}",
-                    format!("■ {clock} {id} → Send[{m:?} → {dst}]").color(color)
-                );
                 let m_clock = actor.clock.clone();
                 actors[*dst].inbox_by_src[id].push_back((m.clone(), m_clock));
                 |_| Some((VectorClock::new(), Event::SendOk))
