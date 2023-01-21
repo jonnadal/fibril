@@ -113,15 +113,14 @@ fn is_not_linearizable() {
     let mut verifier = Verifier::new(|cfg| {
         let server1 = cfg.spawn(Fiber::new(server));
         let server2 = cfg.spawn(Fiber::new(server));
-        cfg.spawn(
-            ConsistencyClient::new(LinearizabilityTester::new(Register::default()))
-                // This example isn't linearizable even without concurrency.
-                .thread([
-                    (server1, RegisterOp::Write("A".into())),
-                    (server2, RegisterOp::Read),
-                ])
-                .into_behavior(),
-        );
+        cfg.spawn(Fiber::new(move |sdk| {
+            let mut client =
+                ConsistencyClient::new(&sdk, LinearizabilityTester::new(Register::default()));
+            client.invoke(server1, RegisterOp::Write("A".to_string()));
+            client.await_response();
+            client.invoke(server2, RegisterOp::Read);
+            client.await_response();
+        }));
     });
     let (_msg, trace) = verifier.assert_panic();
     assert_trace![
