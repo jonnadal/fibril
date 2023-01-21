@@ -41,10 +41,10 @@ impl Synchronous<Register<Value>> for Msg {
             RegisterOp::Write(new_val) => Msg::Put(req_id, new_val.clone()),
         }
     }
-    fn decode_response(&self) -> (RequestId, RegisterRet<Value>) {
+    fn decode_response(self) -> (RequestId, RegisterRet<Value>) {
         match self {
-            Msg::GetOk(req_id, val) => (*req_id, RegisterRet::ReadOk(val.clone())),
-            Msg::PutOk(req_id) => (*req_id, RegisterRet::WriteOk),
+            Msg::GetOk(req_id, val) => (req_id, RegisterRet::ReadOk(val)),
+            Msg::PutOk(req_id) => (req_id, RegisterRet::WriteOk),
             _ => unreachable!(),
         }
     }

@@ -41,7 +41,7 @@ where
     RefObj: SequentialSpec,
 {
     fn encode_request(req_id: RequestId, op: &RefObj::Op) -> Self;
-    fn decode_response(&self) -> (RequestId, RefObj::Ret);
+    fn decode_response(self) -> (RequestId, RefObj::Ret);
 }
 
 pub struct ConsistencyClient<Tester, RefObj>
