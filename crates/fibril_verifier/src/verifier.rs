@@ -14,12 +14,43 @@ use {
 pub(crate) struct Actor<M> {
     behavior: Box<dyn Step<M>>,
     clock: VectorClock,
-    #[allow(clippy::type_complexity)]
-    enabled_events:
-        for<'a> fn(&'a Actor<M>) -> Box<dyn Iterator<Item = (VectorClock, Event<M>)> + 'a>,
-    id: Id,
+    enabled_events: EnabledEventIterator<M>,
     inbox_by_src: Vec<VecDeque<(M, VectorClock)>>,
     trace_tree: TraceTree<M>,
+}
+
+#[derive(Clone)]
+enum EnabledEventIterator<M> {
+    Deterministic(Option<Event<M>>),
+    Recv { src: Id, inbox_offset: usize },
+}
+
+impl<M> EnabledEventIterator<M> {
+    fn next(&mut self, inbox_by_src: &Vec<VecDeque<(M, VectorClock)>>) -> Option<(VectorClock, Event<M>)> where M: Clone {
+        match self {
+            EnabledEventIterator::Deterministic(option) => option.take().map(|event| (VectorClock::new(), event)),
+            EnabledEventIterator::Recv { src, inbox_offset } => {
+                loop {
+                    let inbox = match inbox_by_src.get(usize::from(*src)) {
+                        None => return None,
+                        Some(inbox) => inbox,
+                    };
+                    let msg = inbox.get(*inbox_offset);
+                    match msg {
+                        None => {
+                            *src = Id::from(usize::from(*src) + 1);
+                            *inbox_offset = 0;
+                            continue;
+                        }
+                        Some((msg, msg_clock)) => {
+                            *inbox_offset += 1;
+                            return Some((msg_clock.clone(), Event::RecvOk(*src, msg.clone())));
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -139,12 +170,16 @@ where
         }
     }
 
-    fn enabled_steps(&'_ mut self) -> impl Iterator<Item = (Event<M>, VectorClock, Id)> + '_ {
-        (0..self.actors.len()).into_iter().flat_map(|idx| {
+    fn enabled_steps(&self) -> Vec<(Event<M>, VectorClock, Id)> {
+        let mut output = Vec::new();
+        for idx in 0..self.actors.len() {
             let actor = &self.actors[idx];
-            (actor.enabled_events)(actor)
-                .map(move |(event_clock, event)| (event, event_clock, Id::from(idx)))
-        })
+            let mut enabled_events = actor.enabled_events.clone();
+            while let Some((event_clock, event)) = enabled_events.next(&actor.inbox_by_src) {
+                output.push((event, event_clock, Id::from(idx)));
+            }
+        }
+        output
     }
 
     /// Walks the latest trace in reverse to find a `RecvOk` record (step `i`). Then continues
@@ -275,6 +310,16 @@ where
         None
     }
 
+    fn next_step(&self) -> Option<(Event<M>, VectorClock, Id)> {
+        for idx in 0..self.actors.len() {
+            let actor = &self.actors[idx];
+            if let Some((event_clock, event)) = actor.enabled_events.clone().next(&actor.inbox_by_src) {
+                return Some((event, event_clock, Id::from(idx)));
+            }
+        }
+        None
+    }
+
     pub fn new(cfg_fn: impl Fn(&mut VerifierConfig<M>) + 'static) -> Self {
         let cfg = VerifierConfig::new(&cfg_fn);
 
@@ -284,13 +329,7 @@ where
             actors.push(Actor {
                 behavior,
                 clock: VectorClock::new_with_len(count),
-                enabled_events: |actor| {
-                    Box::new(std::iter::once((
-                        VectorClock::new(),
-                        Event::SpawnOk(actor.id),
-                    )))
-                },
-                id: id.into(),
+                enabled_events: EnabledEventIterator::Deterministic(Some(Event::SpawnOk(id.into()))),
                 inbox_by_src: vec![VecDeque::new(); count],
                 trace_tree: TraceTree::new(),
             });
@@ -310,12 +349,7 @@ where
             let actor = &mut self.actors[id];
             actor.behavior = behavior;
             actor.clock.reset();
-            actor.enabled_events = |actor| {
-                Box::new(std::iter::once((
-                    VectorClock::new(),
-                    Event::SpawnOk(actor.id),
-                )))
-            };
+            actor.enabled_events = EnabledEventIterator::Deterministic(Some(Event::SpawnOk(id.into())));
             for inbox in &mut actor.inbox_by_src {
                 inbox.clear();
             }
@@ -372,7 +406,7 @@ where
         }
 
         loop {
-            let (event, event_clock, id) = match self.enabled_steps().next() {
+            let (event, event_clock, id) = match self.next_step() {
                 None => break,
                 Some(tuple) => tuple,
             };
@@ -409,25 +443,16 @@ where
         let record = self.trace_records.last_mut().unwrap();
         let command = actor.behavior.step(event);
         actors[id].enabled_events = match &command {
-            Command::Exit => |_| Box::new(std::iter::empty()),
-            Command::Panic(_) => |_| Box::new(std::iter::empty()),
-            Command::Recv => |actor| {
-                Box::new(
-                    actor
-                        .inbox_by_src
-                        .iter()
-                        .enumerate()
-                        .flat_map(|(src, inbox)| {
-                            inbox.iter().map(move |(m, m_clock)| {
-                                (m_clock.clone(), Event::RecvOk(src.into(), m.clone()))
-                            })
-                        }),
-                )
+            Command::Exit => EnabledEventIterator::Deterministic(None),
+            Command::Panic(_) => EnabledEventIterator::Deterministic(None),
+            Command::Recv => EnabledEventIterator::Recv {
+                src: 0.into(),
+                inbox_offset: 0,
             },
             Command::Send(dst, m) => {
                 let m_clock = actor.clock.clone();
                 actors[*dst].inbox_by_src[id].push_back((m.clone(), m_clock));
-                |_| Box::new(std::iter::once((VectorClock::new(), Event::SendOk)))
+                EnabledEventIterator::Deterministic(Some(Event::SendOk))
             }
             _ => unimplemented!(),
         };
@@ -450,6 +475,7 @@ where
                         src,
                         VerifierMsg::EnabledOk(
                             self.enabled_steps()
+                                .into_iter()
                                 .map(|(event, event_clock, id)| {
                                     VerifierMsg::Step(event, event_clock, id)
                                 })
@@ -472,6 +498,7 @@ where
                         VerifierMsg::ResetOk {
                             enabled: self
                                 .enabled_steps()
+                                .into_iter()
                                 .map(|(event, event_clock, id)| {
                                     VerifierMsg::Step(event, event_clock, id)
                                 })
@@ -490,6 +517,7 @@ where
                             trace_records: self.trace_records.clone(),
                             enabled: self
                                 .enabled_steps()
+                                .into_iter()
                                 .map(|(event, event_clock, id)| {
                                     VerifierMsg::Step(event, event_clock, id)
                                 })
@@ -505,6 +533,7 @@ where
                             trace_records: self.trace_records.clone(),
                             enabled: self
                                 .enabled_steps()
+                                .into_iter()
                                 .map(|(event, event_clock, id)| {
                                     VerifierMsg::Step(event, event_clock, id)
                                 })
