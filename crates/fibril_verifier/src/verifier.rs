@@ -28,7 +28,7 @@ enum EnabledEventIterator<M> {
 impl<M> EnabledEventIterator<M> {
     fn next(
         &mut self,
-        inbox_by_src: &Vec<VecDeque<(M, VectorClock)>>,
+        inbox_by_src: &[VecDeque<(M, VectorClock)>],
     ) -> Option<(VectorClock, Event<M>)>
     where
         M: Clone,
