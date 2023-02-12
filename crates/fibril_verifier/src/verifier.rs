@@ -129,15 +129,14 @@ impl<M> VerifierConfig<M> {
 /// 4. The checker primes the queue by spawning actors and continues until all queues are
 ///    empty.
 ///
-/// Additional notes:
+/// Two planned optimizations:
 ///
 /// 1. I believe the algorithm only relies on recording events corresponding with nondeterministic
 ///    commands (such as [`Event::RecvOk`] for [`Command::Recv`]) in the wakeup trees. For
 ///    debuggability the current implementation also records events corresponding with
 ///    deterministic commands (such as [`Event::SendOk`] for [`Command::Send`]).
 /// 2. The implementation could persist event _fingerprints_ (digests) rather than the specific
-///    events to reduce memory consumption at the cost of added CPU load. Whether this is
-///    worthwhile remains to be seen.
+///    events to reduce memory consumption at the cost of added CPU load.
 pub struct Verifier<M> {
     actors: Vec<Actor<M>>,
     #[allow(clippy::type_complexity)]
