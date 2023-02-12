@@ -21,6 +21,8 @@ mod id;
 #[non_exhaustive]
 pub enum Command<M> {
     Exit,
+    Expect(String),
+    ExpectationMet(Expectation),
     Panic(String),
     Recv,
     Send(Id, M),
@@ -30,9 +32,24 @@ pub enum Command<M> {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[non_exhaustive]
 pub enum Event<M> {
+    ExpectOk(Expectation),
+    ExpectationMetOk,
     RecvOk(Id, M),
     SendOk,
     SpawnOk(Id),
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct Expectation(String);
+impl Expectation {
+    pub fn new(description: String) -> Self {
+        Expectation(description)
+    }
+
+    pub fn description(&self) -> &String {
+        &self.0
+    }
 }
 
 pub use id::Id;

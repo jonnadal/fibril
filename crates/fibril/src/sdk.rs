@@ -1,6 +1,6 @@
 use {
     corosensei::Yielder,
-    fibril_core::{Command, Event, Id},
+    fibril_core::{Command, Event, Expectation, Id},
     std::collections::{BTreeMap, BTreeSet},
 };
 
@@ -10,6 +10,22 @@ impl<'a, M> Sdk<'a, M> {
     pub fn exit(&self) -> ! {
         self.0.suspend(Command::Exit);
         unreachable!();
+    }
+
+    #[must_use]
+    pub fn expect(&self, description: impl ToString) -> Expectation {
+        let description = description.to_string();
+        match self.0.suspend(Command::Expect(description)) {
+            Event::ExpectOk(expectation) => expectation,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn expectation_met(&self, expectation: Expectation) {
+        match self.0.suspend(Command::ExpectationMet(expectation)) {
+            Event::ExpectationMetOk => {}
+            _ => unreachable!(),
+        }
     }
 
     pub fn id(&self) -> Id {

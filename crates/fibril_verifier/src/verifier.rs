@@ -2,9 +2,9 @@ use {
     crate::{trace_tree::TraceTree, TraceRecord, Visitor},
     colorful::Colorful,
     fibril::Fiber,
-    fibril_core::{Command, Event, Id, Step},
+    fibril_core::{Command, Event, Expectation, Id, Step},
     std::{
-        collections::VecDeque,
+        collections::{BTreeSet, VecDeque},
         fmt::Debug,
         panic::{catch_unwind, AssertUnwindSafe},
     },
@@ -67,6 +67,11 @@ pub enum RunResult<M> {
     Panic {
         message: String,
         minimal_trace: Vec<TraceRecord<M>>,
+    },
+    UnmetExpectation {
+        description: String,
+        id: Id,
+        trace: Vec<TraceRecord<M>>,
     },
 }
 
@@ -137,6 +142,7 @@ pub struct Verifier<M> {
     actors: Vec<Actor<M>>,
     #[allow(clippy::type_complexity)]
     cfg_fn: Box<dyn Fn(&mut VerifierConfig<M>)>,
+    expectations: BTreeSet<(Id, String)>,
     next_prefix: Vec<(Id, Event<M>, VectorClock)>,
     trace_records: Vec<TraceRecord<M>>,
     visitors: Vec<Box<dyn Visitor<M>>>,
@@ -160,7 +166,20 @@ where
                     println!("\t{i}. {r}");
                     i += 1;
                 }
-                panic!("^ {message}");
+                panic!("Panic {message:?}");
+            }
+            RunResult::UnmetExpectation {
+                description,
+                id,
+                trace,
+            } => {
+                println!("Trace reaching unmet expectation:");
+                let mut i = 1;
+                for r in &trace {
+                    println!("\t{i}. {r}");
+                    i += 1;
+                }
+                panic!("{id} did not meet expectation {description:?}");
             }
         }
     }
@@ -173,9 +192,43 @@ where
                 message,
                 minimal_trace,
             } => (message, minimal_trace),
+            RunResult::UnmetExpectation {
+                description,
+                id,
+                trace,
+            } => {
+                println!("Trace reaching unmet expectation:");
+                let mut i = 1;
+                for r in &trace {
+                    println!("\t{i}. {r}");
+                    i += 1;
+                }
+                panic!("{id} did not meet expectation {description:?}");
+            }
         }
     }
 
+    pub fn assert_unmet_expectation(&mut self, expected: impl ToString) {
+        match self.run() {
+            RunResult::Complete => panic!("Done, but expected unmet expectation."),
+            RunResult::Incomplete => panic!("Too many representative traces."),
+            RunResult::Panic {
+                message,
+                minimal_trace,
+            } => {
+                println!("Minimal trace reaching panic:");
+                let mut i = 1;
+                for r in &minimal_trace {
+                    println!("\t{i}. {r}");
+                    i += 1;
+                }
+                panic!("Panic {message:?}");
+            }
+            RunResult::UnmetExpectation { description, .. } => {
+                assert_eq!(description, expected.to_string());
+            }
+        }
+    }
     fn enabled_steps(&self) -> Vec<(Event<M>, VectorClock, Id)> {
         let mut output = Vec::new();
         for idx in 0..self.actors.len() {
@@ -347,6 +400,7 @@ where
         Verifier {
             actors,
             cfg_fn: Box::new(cfg_fn),
+            expectations: BTreeSet::new(),
             next_prefix: Vec::new(),
             trace_records: Vec::new(),
             visitors: Vec::new(),
@@ -399,6 +453,13 @@ where
                         .filter(|r| &r.clock <= final_clock) // minimal trace
                         .cloned()
                         .collect(),
+                };
+            }
+            if let Some((id, description)) = self.expectations.iter().next() {
+                return RunResult::UnmetExpectation {
+                    description: description.clone(),
+                    id: *id,
+                    trace: self.trace_records.clone(),
                 };
             }
             self.next_prefix = match self.find_next_reversible_race() {
@@ -455,6 +516,23 @@ where
         let command = actor.behavior.step(event);
         actors[id].enabled_events = match &command {
             Command::Exit => EnabledEventIterator::Deterministic(None),
+            Command::Expect(description) => {
+                if !self.expectations.insert((id, description.clone())) {
+                    panic!("Expectation already exists: {id} / {description}");
+                }
+                EnabledEventIterator::Deterministic(Some(Event::ExpectOk(Expectation::new(
+                    description.clone(),
+                ))))
+            }
+            Command::ExpectationMet(expectation) => {
+                if !self
+                    .expectations
+                    .remove(&(id, expectation.description().clone()))
+                {
+                    panic!("Expectation does not exist: {id} / {expectation:?}");
+                }
+                EnabledEventIterator::Deterministic(Some(Event::ExpectationMetOk))
+            }
             Command::Panic(_) => EnabledEventIterator::Deterministic(None),
             Command::Recv => EnabledEventIterator::Recv {
                 src: 0.into(),
@@ -599,6 +677,7 @@ mod test {
         super::*,
         crate::{assert_trace, TraceRecordingVisitor},
         fibril::Fiber,
+        std::panic::{catch_unwind, AssertUnwindSafe},
     };
 
     #[test]
@@ -629,6 +708,58 @@ mod test {
             "RecvOk(:0, \"FROM SERVER\")@<2 1> → :0 → Exit@<4 1>",
             "SendOk@<> → :1 → Exit@<0 2>",
         ];
+    }
+
+    #[test]
+    fn highlights_unmet_expectations() {
+        let (record, replay) = TraceRecordingVisitor::new_with_replay();
+        let mut verifier = Verifier::new(|cfg| {
+            let server = cfg.spawn(Fiber::new(|sdk| loop {
+                let (_src, _msg) = sdk.recv();
+                // no reply
+            }));
+            cfg.spawn(Fiber::new(move |sdk| {
+                sdk.send(server, "Hello");
+                let expect_response = sdk.expect("receive response");
+                let _ = sdk.recv();
+                sdk.expectation_met(expect_response);
+            }));
+        })
+        .visitor(record);
+        if let Err(panic) = catch_unwind(AssertUnwindSafe(|| verifier.assert_no_panic())) {
+            if let Some(panic) = panic.downcast_ref::<String>() {
+                assert_eq!(panic, ":1 did not meet expectation \"receive response\"");
+            } else {
+                unreachable!();
+            };
+        } else {
+            panic!("Expected unmet expectation");
+        }
+
+        let traces = replay();
+        assert_eq!(traces.len(), 1);
+    }
+
+    #[test]
+    fn ignores_met_expectations() {
+        let (record, replay) = TraceRecordingVisitor::new_with_replay();
+        let mut verifier = Verifier::new(|cfg| {
+            let server = cfg.spawn(Fiber::new(|sdk| loop {
+                let (src, msg) = sdk.recv();
+                sdk.send(src, msg);
+            }));
+            cfg.spawn(Fiber::new(move |sdk| {
+                sdk.send(server, "Hello");
+                let expect_response = sdk.expect("receive response");
+                let _ = sdk.recv();
+                sdk.expectation_met(expect_response);
+            }));
+        })
+        .visitor(record);
+        verifier.assert_no_panic();
+
+        let traces = replay();
+        assert_eq!(traces.len(), 1);
     }
 
     #[test]
