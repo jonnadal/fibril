@@ -26,29 +26,35 @@ enum EnabledEventIterator<M> {
 }
 
 impl<M> EnabledEventIterator<M> {
-    fn next(&mut self, inbox_by_src: &Vec<VecDeque<(M, VectorClock)>>) -> Option<(VectorClock, Event<M>)> where M: Clone {
+    fn next(
+        &mut self,
+        inbox_by_src: &Vec<VecDeque<(M, VectorClock)>>,
+    ) -> Option<(VectorClock, Event<M>)>
+    where
+        M: Clone,
+    {
         match self {
-            EnabledEventIterator::Deterministic(option) => option.take().map(|event| (VectorClock::new(), event)),
-            EnabledEventIterator::Recv { src, inbox_offset } => {
-                loop {
-                    let inbox = match inbox_by_src.get(usize::from(*src)) {
-                        None => return None,
-                        Some(inbox) => inbox,
-                    };
-                    let msg = inbox.get(*inbox_offset);
-                    match msg {
-                        None => {
-                            *src = Id::from(usize::from(*src) + 1);
-                            *inbox_offset = 0;
-                            continue;
-                        }
-                        Some((msg, msg_clock)) => {
-                            *inbox_offset += 1;
-                            return Some((msg_clock.clone(), Event::RecvOk(*src, msg.clone())));
-                        }
+            EnabledEventIterator::Deterministic(option) => {
+                option.take().map(|event| (VectorClock::new(), event))
+            }
+            EnabledEventIterator::Recv { src, inbox_offset } => loop {
+                let inbox = match inbox_by_src.get(usize::from(*src)) {
+                    None => return None,
+                    Some(inbox) => inbox,
+                };
+                let msg = inbox.get(*inbox_offset);
+                match msg {
+                    None => {
+                        *src = Id::from(usize::from(*src) + 1);
+                        *inbox_offset = 0;
+                        continue;
+                    }
+                    Some((msg, msg_clock)) => {
+                        *inbox_offset += 1;
+                        return Some((msg_clock.clone(), Event::RecvOk(*src, msg.clone())));
                     }
                 }
-            }
+            },
         }
     }
 }
@@ -313,7 +319,9 @@ where
     fn next_step(&self) -> Option<(Event<M>, VectorClock, Id)> {
         for idx in 0..self.actors.len() {
             let actor = &self.actors[idx];
-            if let Some((event_clock, event)) = actor.enabled_events.clone().next(&actor.inbox_by_src) {
+            if let Some((event_clock, event)) =
+                actor.enabled_events.clone().next(&actor.inbox_by_src)
+            {
                 return Some((event, event_clock, Id::from(idx)));
             }
         }
@@ -329,7 +337,9 @@ where
             actors.push(Actor {
                 behavior,
                 clock: VectorClock::new_with_len(count),
-                enabled_events: EnabledEventIterator::Deterministic(Some(Event::SpawnOk(id.into()))),
+                enabled_events: EnabledEventIterator::Deterministic(Some(Event::SpawnOk(
+                    id.into(),
+                ))),
                 inbox_by_src: vec![VecDeque::new(); count],
                 trace_tree: TraceTree::new(),
             });
@@ -349,7 +359,8 @@ where
             let actor = &mut self.actors[id];
             actor.behavior = behavior;
             actor.clock.reset();
-            actor.enabled_events = EnabledEventIterator::Deterministic(Some(Event::SpawnOk(id.into())));
+            actor.enabled_events =
+                EnabledEventIterator::Deterministic(Some(Event::SpawnOk(id.into())));
             for inbox in &mut actor.inbox_by_src {
                 inbox.clear();
             }
