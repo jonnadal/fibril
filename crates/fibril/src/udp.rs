@@ -1,5 +1,5 @@
 use {
-    fibril_core::{Command, Event, Id, Step},
+    fibril_core::{Command, Event, Expectation, Id, Step},
     std::{
         fmt::Debug,
         net::{Ipv4Addr, SocketAddrV4, UdpSocket},
@@ -153,6 +153,8 @@ impl<M> UdpRuntime<M> {
                     Command::Exit => {
                         return;
                     }
+                    Command::Expect(description) => Event::ExpectOk(Expectation::new(description)),
+                    Command::ExpectationMet(_) => Event::ExpectationMetOk,
                     Command::Panic(msg) => {
                         panic!("{}", msg);
                     }
