@@ -151,6 +151,7 @@ impl<M> Verifier<M>
 where
     M: Clone + Debug + PartialEq,
 {
+    #[track_caller]
     pub fn assert_no_panic(&mut self) {
         match self.run() {
             RunResult::Complete => (),
@@ -183,6 +184,7 @@ where
         }
     }
 
+    #[track_caller]
     pub fn assert_panic(&mut self) -> (String, Vec<TraceRecord<M>>) {
         match self.run() {
             RunResult::Complete => panic!("Done, but expected an actor to panic."),
@@ -207,6 +209,7 @@ where
         }
     }
 
+    #[track_caller]
     pub fn assert_unmet_expectation(&mut self, expected: impl ToString) {
         match self.run() {
             RunResult::Complete => panic!("Done, but expected unmet expectation."),
@@ -228,6 +231,7 @@ where
             }
         }
     }
+
     fn enabled_steps(&self) -> Vec<(Event<M>, VectorClock, Id)> {
         let mut output = Vec::new();
         for idx in 0..self.actors.len() {
