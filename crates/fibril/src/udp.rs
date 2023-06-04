@@ -1,11 +1,13 @@
 use {
-    fibril_core::{Command, Event, Expectation, Id, Step},
+    fibril_core::{Command, Deadline, Event, Expectation, Id, Step},
     std::{
+        collections::BTreeMap,
         fmt::Debug,
         net::{Ipv4Addr, SocketAddrV4, UdpSocket},
         thread::JoinHandle,
+        time::Duration,
     },
-    tokio::{runtime::Runtime as TokioRuntime, sync::mpsc},
+    tokio::{runtime::Runtime as TokioRuntime, sync::mpsc, time::Instant},
     tracing::{debug, error, info, warn},
 };
 
@@ -136,12 +138,14 @@ impl<M> UdpRuntime<M> {
                     break;
                 }
             }
-            info!("Cleanly interrupted {} behavior handler for shutdown.", id);
+            info!(?id, "Cleanly interrupted behavior handler for shutdown.");
         }));
 
         let ser = self.ser;
         let de = self.de;
         self.handles_tokio.push(self.rt.spawn(async move {
+            let mut instants = BTreeMap::new();
+            let mut next_deadline_id = 0;
             let socket = tokio::net::UdpSocket::from_std(socket).unwrap();
             let mut buf = [0; 256];
             loop {
@@ -152,6 +156,29 @@ impl<M> UdpRuntime<M> {
                 let next_event = match command {
                     Command::Exit => {
                         return;
+                    }
+                    Command::Deadline(duration) => {
+                        instants.insert(next_deadline_id, Instant::now().checked_add(duration).expect("Invalid duration"));
+                        let event = Event::DeadlineOk(Deadline { id: next_deadline_id });
+                        next_deadline_id += 1;
+                        event
+                    }
+                    Command::DeadlineElapsed(Deadline { id }) => {
+                        let is_elapsed = instants
+                            .get(&id).map(|i| i.elapsed() > Duration::ZERO)
+                            .unwrap_or(true);
+                        // Can use drain_filter once https://github.com/rust-lang/rust/issues/70530
+                        // stabilizes.
+                        let expired: Vec<_> = instants
+                            .iter()
+                            .filter_map(|(id, instant)| {
+                                (instant.elapsed() > Duration::ZERO).then_some(*id)
+                            })
+                            .collect();
+                        for id in expired {
+                            instants.remove(&id);
+                        }
+                        Event::DeadlineElapsedOk(is_elapsed)
                     }
                     Command::Expect(description) => Event::ExpectOk(Expectation::new(description)),
                     Command::ExpectationMet(_) => Event::ExpectationMetOk,
@@ -169,24 +196,24 @@ impl<M> UdpRuntime<M> {
                                 ),
                             };
                             match de(&buf[0..count]) {
-                                None => debug!("Unable to deserialize message to {id}. Ignoring."),
+                                None => debug!(?src, dst=?id, "Unable to deserialize message. Ignoring."),
                                 Some(msg) => break Event::RecvOk(src, msg),
                             }
                         }
                     }
                     Command::Send(dst, msg) => {
                         match ser(msg) {
-                            None => warn!("Serialization failed. Ignoring."),
+                            None => warn!(src=?id, ?dst, "Serialization failed. Ignoring."),
                             Some(serialized) => {
                                 match socket.send_to(&serialized, SocketAddrV4::from(dst)).await {
                                     Ok(len_sent) => {
                                         if len_sent < serialized.len() {
-                                            warn!("Message from {id} was too large to send. Ignoring.");
+                                            warn!(src=?id, ?dst, "Message was too large to send. Ignoring.");
                                             continue;
                                         }
                                     }
                                     Err(err) => {
-                                        warn!("Unable to write socket for {id}. Ignoring. Error: {err:?}");
+                                        warn!(src=?id, ?dst, ?err, "Unable to write socket. Ignoring.");
                                         continue;
                                     }
                                 };
@@ -194,10 +221,16 @@ impl<M> UdpRuntime<M> {
                         }
                         Event::SendOk
                     }
+                    Command::SleepUntil(Deadline { id }) => {
+                        if let Some(instant) = instants.get(&id) {
+                            tokio::time::sleep_until(*instant).await;
+                        }
+                        Event::SleepUntilOk
+                    }
                     command => panic!("{command:?} is not supported at this time."),
                 };
                 if tx_events.send(next_event).await.is_err() {
-                    info!("Cleanly interrupted {} I/O handler for shutdown.", id);
+                    info!(?id, "Cleanly interrupted I/O handler for shutdown.");
                     break;
                 }
             }
