@@ -91,6 +91,7 @@
 #![warn(rust_2018_idioms, unreachable_pub)]
 
 mod consistency_client;
+mod time_context;
 mod trace_record;
 mod trace_tree;
 mod verifier;
