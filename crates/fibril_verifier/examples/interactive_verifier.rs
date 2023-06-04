@@ -1,6 +1,7 @@
 use {fibril::Fiber, fibril_verifier::Verifier};
 
 fn main() {
+    tracing_subscriber::fmt::init();
     let mut rt = fibril::UdpRuntime::new_with_serde_json().port_fn(|n| 3000 + n);
     let verifier_id = rt.spawn(|| {
         Verifier::new(|cfg| {
@@ -33,7 +34,7 @@ fn main() {
     });
     println!("Listening at: {verifier_id}");
     println!(
-        "Connect with: nc -u {}",
+        "You can connect with a UDP client. For instance: nc -u {}",
         format!("{}", verifier_id).replace(":", " ")
     );
     println!("Then: \"Help\"");
