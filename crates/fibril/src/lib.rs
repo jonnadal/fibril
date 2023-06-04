@@ -22,6 +22,8 @@ mod sdk;
 #[cfg(feature = "rt")]
 mod udp;
 
+pub use fibril_core::Deadline;
+
 #[cfg(feature = "fibers")]
 pub use fiber::Fiber;
 

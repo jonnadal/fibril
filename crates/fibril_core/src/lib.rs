@@ -16,26 +16,41 @@
 
 mod id;
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+use std::time::Duration;
+
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[non_exhaustive]
 pub enum Command<M> {
+    Deadline(Duration),
+    DeadlineElapsed(Deadline),
     Exit,
     Expect(String),
     ExpectationMet(Expectation),
     Panic(String),
     Recv,
     Send(Id, M),
+    SleepUntil(Deadline),
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct Deadline {
+    #[doc(hidden)]
+    pub id: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[non_exhaustive]
 pub enum Event<M> {
+    DeadlineOk(Deadline),
+    DeadlineElapsedOk(bool),
     ExpectOk(Expectation),
     ExpectationMetOk,
     RecvOk(Id, M),
     SendOk,
+    SleepUntilOk,
     SpawnOk(Id),
 }
 
