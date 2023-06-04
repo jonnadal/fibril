@@ -46,8 +46,8 @@ where
     fn decode_response(self) -> (RequestId, RefObj::Ret);
 }
 
-/// Provides an abstraction that a [`Fiber`] can use to validate whether a distributed system
-/// obeys particular consistency semantics.
+/// Provides an abstraction that a [`fibril::Fiber`] can use to validate whether a distributed
+/// system obeys particular consistency semantics.
 ///
 /// # Example
 ///
