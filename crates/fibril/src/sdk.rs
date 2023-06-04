@@ -1,12 +1,30 @@
 use {
     corosensei::Yielder,
-    fibril_core::{Command, Event, Expectation, Id},
-    std::collections::{BTreeMap, BTreeSet},
+    fibril_core::{Command, Deadline, Event, Expectation, Id},
+    std::{
+        collections::{BTreeMap, BTreeSet},
+        fmt::{Debug, Formatter},
+        time::Duration,
+    },
 };
 
 pub struct Sdk<'a, M>(pub(crate) &'a Yielder<Event<M>, Command<M>>, pub(crate) Id);
 
 impl<'a, M> Sdk<'a, M> {
+    pub fn deadline(&self, duration: Duration) -> Deadline {
+        match self.0.suspend(Command::Deadline(duration)) {
+            Event::DeadlineOk(deadline) => deadline,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn deadline_elapsed(&self, deadline: Deadline) -> bool {
+        match self.0.suspend(Command::DeadlineElapsed(deadline)) {
+            Event::DeadlineElapsedOk(truth) => truth,
+            _ => unreachable!(),
+        }
+    }
+
     pub fn exit(&self) -> ! {
         self.0.suspend(Command::Exit);
         unreachable!();
@@ -111,5 +129,18 @@ impl<'a, M> Sdk<'a, M> {
         for dst in dst {
             self.send(dst, m.clone());
         }
+    }
+
+    pub fn sleep_until(&self, deadline: Deadline) {
+        match self.0.suspend(Command::SleepUntil(deadline)) {
+            Event::SleepUntilOk => (),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl<'a, M> Debug for Sdk<'a, M> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Sdk@{}", self.1)
     }
 }
