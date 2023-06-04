@@ -136,6 +136,8 @@ macro_rules! assert_trace_ {
     );
 }
 
+pub use verifier::BehaviorConfig;
+
 pub use consistency_client::ConsistencyClient;
 
 pub use consistency_client::RequestId;
@@ -149,7 +151,5 @@ pub use trace_record::TraceRecord;
 pub use visitor::TraceRecordingVisitor;
 
 pub use verifier::Verifier;
-
-pub use verifier::VerifierConfig;
 
 pub use visitor::Visitor;

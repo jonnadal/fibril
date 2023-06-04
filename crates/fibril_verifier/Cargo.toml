@@ -16,4 +16,8 @@ consistency_model = { path = "../consistency_model", version = "0" }
 fibril = { path = "../fibril", version = "0", features = ["fibers", "rt", "serde_json"] }
 fibril_core = { path = "../fibril_core", version = "0", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
 vector_clock = { path = "../vector_clock", version = "0", features = ["serde"] }
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
