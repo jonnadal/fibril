@@ -7,7 +7,6 @@ use std::{
 };
 
 #[derive(Clone, Copy, Default, Eq, Ord, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Id(usize);
 
 impl Debug for Id {
@@ -15,6 +14,7 @@ impl Debug for Id {
         Display::fmt(self, f)
     }
 }
+
 impl Display for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         if self.0 < 256 * 256 {
@@ -32,6 +32,7 @@ impl Display for Id {
         }
     }
 }
+
 #[cfg(feature = "std")]
 impl From<SocketAddr> for Id {
     fn from(addr: SocketAddr) -> Self {
@@ -41,6 +42,7 @@ impl From<SocketAddr> for Id {
         }
     }
 }
+
 #[cfg(feature = "std")]
 impl From<SocketAddrV4> for Id {
     fn from(addr: SocketAddrV4) -> Self {
@@ -81,7 +83,19 @@ impl From<Id> for SocketAddrV4 {
     }
 }
 
-#[cfg(feature = "std")]
+impl<T> Index<Id> for [T] {
+    type Output = T;
+    fn index(&self, id: Id) -> &Self::Output {
+        self.index(usize::from(id))
+    }
+}
+
+impl<T> IndexMut<Id> for [T] {
+    fn index_mut(&mut self, id: Id) -> &mut Self::Output {
+        self.index_mut(usize::from(id))
+    }
+}
+
 impl<T> Index<Id> for Vec<T> {
     type Output = T;
     fn index(&self, id: Id) -> &Self::Output {
@@ -89,9 +103,28 @@ impl<T> Index<Id> for Vec<T> {
     }
 }
 
-#[cfg(feature = "std")]
 impl<T> IndexMut<Id> for Vec<T> {
     fn index_mut(&mut self, id: Id) -> &mut Self::Output {
         self.index_mut(usize::from(id))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Id {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        SocketAddrV4::deserialize(deserializer).map(|v4| v4.into())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Id {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        SocketAddrV4::from(*self).serialize(serializer)
     }
 }
