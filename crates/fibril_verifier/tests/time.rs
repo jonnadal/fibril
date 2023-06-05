@@ -1,6 +1,6 @@
 use {
     fibril::{Fiber, Sdk},
-    fibril_verifier::{assert_trace, TraceRecordingVisitor, Verifier},
+    fibril_verifier::{assert_trace, Verifier},
     std::time::Duration,
 };
 

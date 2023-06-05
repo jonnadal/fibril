@@ -76,18 +76,13 @@ mod test {
 
     #[test]
     fn has_expected_traces() {
-        let (record, replay) = TraceRecordingVisitor::new_with_replay();
-        let mut verifier = Verifier::new(|cfg| {
+        let traces = Verifier::traces(|cfg| {
             let server = cfg.spawn(Fiber::new(disco_server));
             cfg.spawn(Fiber::new(move |sdk| {
                 sdk.send(server, Msg::Renew);
                 sdk.send(server, Msg::Query);
             }));
-        })
-        .visitor(record);
-        verifier.assert_no_panic();
-
-        let traces = replay();
+        });
         assert_eq!(traces.len(), 6);
         assert_trace![
             traces[0],
