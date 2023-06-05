@@ -35,7 +35,7 @@ fn main() {
     println!("Listening at: {verifier_id}");
     println!(
         "You can connect with a UDP client. For instance: nc -u {}",
-        format!("{}", verifier_id).replace(":", " ")
+        format!("{}", verifier_id).replace(':', " ")
     );
     println!("Then: \"Help\"");
     rt.join().unwrap();

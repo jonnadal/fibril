@@ -4,8 +4,7 @@ use {
         collections::{BTreeMap, BTreeSet},
         time::Duration,
     },
-    tracing::{info, info_span, metadata::LevelFilter},
-    tracing_subscriber::prelude::*,
+    tracing::{info, info_span},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
@@ -29,12 +28,7 @@ fn disco_server(sdk: Sdk<Msg>) {
         if sdk.deadline_elapsed(next_gc) {
             info!("Garbage collecting stale records.");
             next_gc = sdk.deadline(GC_INTERVAL);
-            expirations_by_id = expirations_by_id
-                .into_iter()
-                .filter_map(|(id, expiration)| {
-                    (!sdk.deadline_elapsed(expiration)).then(|| (id, expiration))
-                })
-                .collect();
+            expirations_by_id.retain(|_id, expiration| !sdk.deadline_elapsed(*expiration));
         }
 
         match msg {
@@ -70,7 +64,7 @@ fn main() {
     println!("Listening at: {server}");
     println!(
         "You can connect with a UDP client. For instance: nc -u {}",
-        format!("{}", server).replace(":", " ")
+        format!("{}", server).replace(':', " ")
     );
     println!("Then: \"Query\" or \"Renew\"");
     rt.join().unwrap();
