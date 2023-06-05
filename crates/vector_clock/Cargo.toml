@@ -6,8 +6,8 @@ edition = "2021"
 authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
 description = "An efficient vector clock for partially ordered events."
 repository = "https://github.com/jonnadal/fibril"
-categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
-keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
+categories = ["algorithms", "concurrency", "development-tools", "network-programming"]
+keywords = ["data-structures", "distributed-systems", "vector-clock"]
 
 [dependencies.serde]
 optional = true

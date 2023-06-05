@@ -6,8 +6,8 @@ edition = "2021"
 authors = ["Jonathan Nadal <jon.nadal@gmail.com>"]
 description = "A tester for distributed system consistency properties like linearizability and sequential consistency."
 repository = "https://github.com/jonnadal/fibril"
-categories = ["algorithms", "concurrency", "development-tools", "network-programming", "simulation"]
-keywords = ["actor", "model-checking", "paxos", "raft", "simulation"]
+categories = ["algorithms", "concurrency", "development-tools", "network-programming"]
+keywords = ["consensus", "linearizability", "semantics"]
 
 [dependencies.serde]
 optional = true
